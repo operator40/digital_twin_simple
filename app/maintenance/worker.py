@@ -269,7 +269,7 @@ def process_job(session: Session, job: PredictionJob) -> None:
         # 2. a predikciós táblák feltöltése;
         # 3. az adatbázis-commit;
         # 4. az eredmény visszaadása.
-        prediction_result = predict(job_id=job_id, maintenance_end_time=(workorder.ended), failure_start_time=(workorder.failuredate), asset_id=(sync_result.asset_id), asset_failure_cause_operations=(sync_result.asset_failure_cause_operations))
+        prediction_result = predict(job_id=job_id, maintenance_end_time=(workorder.ended), failure_start_time=(workorder.failure_date), asset_id=(sync_result.asset_id), asset_failure_cause_operations=(sync_result.asset_failure_cause_operations))
 
         (prediction_id, failure_type_ids, failure_type_probabilities, predicted_reliability) = validate_prediction_result(prediction_result=prediction_result)
 

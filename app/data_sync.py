@@ -338,7 +338,7 @@ def ensure_asset_failure_type(
     # elírt mezőnévvel.
     if probability_raw is None:
         probability_raw = failure_cause.get(
-            "default_occurence_probability"
+            "default_occurrence_probability"
         )
 
     if probability_raw is None:
@@ -517,7 +517,7 @@ def store_asset_worksheet(
         select(AssetWorksheetList
                ).where(AssetWorksheetList.asset_id == int(asset_id),
                        AssetWorksheetList.maintenance_end_date == workorder.ended,
-                       AssetWorksheetList.failure_start_time == workorder.failuredate,
+                       AssetWorksheetList.failure_start_time == workorder.failure_date,
                        )
     ).scalars().all()
 
@@ -556,7 +556,7 @@ def store_asset_worksheet(
             asset_failure_type_id
         ),
         failure_start_time=(
-            workorder.failuredate
+            workorder.failure_date
         ),
         downtime_in_min=None,
     )

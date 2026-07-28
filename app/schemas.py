@@ -13,7 +13,7 @@ class AssetPredictIn(BaseModel):
 
     failure_cause_id: Optional[int] = Field(default=None, gt=0)
 
-    failuredate: datetime
+    failure_date: datetime
     ended: datetime
 
     type: Literal["PREVENTIVE", "CORRECTIVE"]
@@ -21,8 +21,8 @@ class AssetPredictIn(BaseModel):
 
     @model_validator(mode="after")
     def validate_asset_predict(self):
-        if self.ended < self.failuredate:
-            raise ValueError("ended cannot be earlier than failuredate")
+        if self.ended < self.failure_date:
+            raise ValueError("ended cannot be earlier than failure_date")
 
         if any(operation_id <= 0 for operation_id in self.operation_ids):
             raise ValueError("Every operation_id must be greater than zero")
@@ -44,13 +44,13 @@ class AssetPredictionPayload(BaseModel):
 
     sf_asset_id: int = Field(serialization_alias="asset_id", gt=0)
 
-    predicted_reliability: float = Field(ge=0.0, le=1.0)
+    predicted_occurrence_probability: float = Field(ge=0.0, le=1.0)
 
 
 class FailureCausePredictionItem(BaseModel):
     asset_failurecause_id: int = Field(gt=0)
 
-    predicted_reliability: float = Field(ge=0.0, le=1.0)
+    predicted_occurrence_probability: float = Field(ge=0.0, le=1.0)
 
 
 class AssetFailureCausePredictionPayload(BaseModel):
