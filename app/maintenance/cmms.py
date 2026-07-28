@@ -158,16 +158,10 @@ async def cmms_post_asset_prediction(
 async def cmms_post_asset_failure_cause_prediction(
     payload: dict,
 ) -> dict | list:
-    url = (
-        f"{settings.CMMS_BASE_URL}"
-        "/dt/asset_failure_cause_prediction"
-    )
+    url = (f"{settings.CMMS_BASE_URL}" "/dt/asset_failure_cause_prediction")
 
     try:
-        _log_start(
-            "POST",
-            url,
-        )
+        _log_start("POST", url)
 
         async with httpx.AsyncClient(
             timeout=_timeout(),

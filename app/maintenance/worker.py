@@ -159,7 +159,7 @@ def build_failure_cause_items(asset_failurecause_ids: list[int], failure_type_pr
     if (len(asset_failurecause_ids) != len(failure_type_probabilities)):
         raise ValueError("asset_failurecause_ids and failure_type_probabilities must have the same number of elements")
 
-    return [FailureCausePredictionItem(asset_failurecause_id=(asset_failurecause_id), predicted_reliability=probability)
+    return [FailureCausePredictionItem(asset_failurecause_id=(asset_failurecause_id), predicted_occurrence_probability=probability)
             for (asset_failurecause_id, probability) in zip(asset_failurecause_ids, failure_type_probabilities)]
 
 
