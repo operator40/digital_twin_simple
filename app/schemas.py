@@ -44,13 +44,13 @@ class AssetPredictionPayload(BaseModel):
 
     sf_asset_id: int = Field(serialization_alias="asset_id", gt=0)
 
-    predicted_occurrence_probability: float = Field(ge=0.0, le=1.0)
+    predicted_reliability: float = Field(ge=0.0, le=1.0)
 
 
 class FailureCausePredictionItem(BaseModel):
     asset_failurecause_id: int = Field(gt=0)
 
-    predicted_occurrence_probability: float = Field(ge=0.0, le=1.0)
+    predicted_reliability: float = Field(ge=0.0, le=1.0)
 
 
 class AssetFailureCausePredictionPayload(BaseModel):

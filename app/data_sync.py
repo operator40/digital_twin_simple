@@ -1,4 +1,5 @@
 import asyncio
+import httpx
 from dataclasses import dataclass
 from datetime import datetime
 from collections import Counter
@@ -333,13 +334,6 @@ def ensure_asset_failure_type(
     probability_raw = failure_cause.get(
         "default_occurrence_probability"
     )
-
-    # Kompatibilitás a CMMS dokumentációban szereplő
-    # elírt mezőnévvel.
-    if probability_raw is None:
-        probability_raw = failure_cause.get(
-            "default_occurrence_probability"
-        )
 
     if probability_raw is None:
         asset_failure_type.default_occurrence_probability = None
@@ -690,11 +684,21 @@ def synchronize_workorder(
     feladata.
     """
 
-    cmms_payload = asyncio.run(
-        cmms_get_asset_failure_causes(
-            workorder.sf_asset_id
+    try:
+        cmms_payload = asyncio.run(
+            cmms_get_asset_failure_causes(
+                workorder.sf_asset_id
+            )
         )
-    )
+
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code == 404:
+            raise DataSyncNotFoundError(
+                "The CMMS returned no asset failure causes "
+                f"for sf_asset_id={workorder.sf_asset_id}"
+            ) from error
+
+        raise
 
     asset_failure_cause_operations = (
         build_asset_failure_cause_operations(
