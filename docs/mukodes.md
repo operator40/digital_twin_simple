@@ -1,131 +1,106 @@
-﻿# digital_twin_simple - Mukodesi dokumentacio
+# Működési dokumentáció
 
-## Fo komponensek
+Ez a dokumentum a repository jelenlegi kódját írja le. A konténeres telepítés
+lépései a `docs/containerization.md` fájlban találhatók.
 
-- API (FastAPI, async): `app/main.py`
-- Adatsemak (Pydantic): `app/schemas.py`
-- DB kapcsolatok: `app/db.py`
-- ORM modellek: `app/models.py`
-- Worker (DB queue fogyaszto): `app/worker.py`
-- Predikcios logika: `app/predict.py`
-- CMMS kliens: `app/cmms.py`
-- Segedek (idempotencia hash, atomikus JSON iras): `app/utils.py`
-- Beallitasok: `app/settings.py`
+## Bejövő API-kérés
 
-## API vegpontok
+A FastAPI alkalmazás jelenleg egy üzleti végpontot biztosít:
 
-### POST `/asset_predict`
+```text
+POST /asset_predict
+```
 
-- Input: `AssetPredictIn`
-- Kimenet: `AssetPredictOut` (`prediction_id: int`)
+A végpont `X-API-Key` fejlécet vár. A kulcs elvárt értékét az
+`INBOUND_API_KEY` környezeti változó adja meg. Hiányzó vagy hibás kulcs esetén
+az API `401 Unauthorized`, hibás kérés esetén `400 Bad Request` választ ad.
 
-Mukodes:
-- Idempotencia hash keszul a request body-bol (`request_hash`).
-- Ha van azonos hash-u job, ugyanazt az azonosito adja vissza.
-- Kulonben `prediction_jobs` rekord jon letre `endpoint_type="asset_predict"` ertekkel.
+A kérés mezői:
 
-### POST `/asset_failure_type_predict`
+| Mező | Típus | Szabály |
+| --- | --- | --- |
+| `workorder_id` | pozitív egész | kötelező |
+| `asset_id` | pozitív egész | a kódban `sf_asset_id` néven kezelt külső CMMS-azonosító |
+| `failure_cause_id` | pozitív egész vagy `null` | nem preventív munkalapnál kötelező |
+| `failure_date` | ISO 8601 dátum-idő | nem lehet későbbi az `ended` értékénél |
+| `ended` | ISO 8601 dátum-idő | kötelező |
+| `type` | `PREVENTIVE` vagy `CORRECTIVE` | kötelező |
+| `operation_ids` | pozitív egészek nem üres listája | kötelező |
 
-- Input: `AssetFailureTypePredictIn`
-- Kimenet: `AssetFailureTypePredictOut` (`prediction_id: int`)
+A sikeres kérés `202 Accepted` választ ad:
 
-Mukodes:
-- Idempotens queue-olas `request_hash` alapjan.
-- Uj job `endpoint_type="asset_failure_type_predict"`.
+```json
+{
+  "job_id": 123
+}
+```
 
-## Folyamat attekintes
+## Idempotens sorba állítás
 
-1. API hivashoz payload erkezik.
-2. FastAPI/Pydantic validalja a payloadot.
-3. API `request_hash` erteket szamol.
-4. API meglevo jobot keres a hash alapjan.
-5. Ha nincs talalat, uj rekord jon letre a `prediction_jobs` tablaban (`queued`).
-6. A worker folyamatosan poll-ol, es `FOR UPDATE SKIP LOCKED` segitsegevel claim-eli a soron kovetkezo jobot.
-7. A worker `processing` statuszra allit, majd lefuttatja a `process_job` logikat.
-8. Kimenet: DB insert a `prediction` tablaba, JSON fajl a `DATA_DIR` konyvtarba, CMMS POST.
-9. Job statusz vege: `done`, `not_found`, vagy `error`.
+Az API a normalizált JSON-kérésből determinisztikus SHA-256 hash-t készít, majd
+ezzel keres a `public.prediction_jobs` táblában.
 
-## Worker logika roviden
+- új kérés: új `queued` rekord jön létre;
+- azonos `queued`, `processing` vagy `done` kérés: a meglévő `job_id` tér vissza;
+- azonos `error` vagy `not_found` kérés: ugyanaz a rekord újra `queued` lesz.
 
-Claim es retry:
+Két egyidejű, azonos kérésből a `request_hash` egyedi indexe miatt csak egy job
+jöhet létre.
 
-- `claim_one_job` kivalaszt egy `queued` sort es `processing` statuszra allitja.
-- `requeue_stuck_jobs` a 120 masodpercnel regebbi `processing` jobokat visszateszi `queued`-ba, ha `retry_count < 5`.
-- A retry limit folott `error` statusz jon `Retry limit exceeded` uzenettel.
+## Worker-folyamat
 
-Payload ujravalidacio:
+A worker másodpercenként keres feldolgozható feladatot. A legrégebbi `queued`
+sort `FOR UPDATE SKIP LOCKED` lekérdezéssel foglalja le, ezért több worker is
+futhat anélkül, hogy ugyanazt a jobot egyszerre dolgoznák fel.
 
-- `asset_predict` eseten `AssetPredictIn`.
-- `asset_failure_type_predict` eseten `AssetFailureTypePredictIn`.
+A fő lépések:
 
-Alapadatok biztositasa:
+1. A job `processing` állapotba kerül.
+2. A worker újra validálja az eltárolt payloadot.
+3. A CMMS-től lekéri az eszköz hibaokait.
+4. A helyi `assets.sf_asset_id` alapján feloldja a belső `asset_id` értéket.
+5. Szinkronizálja a hibaokokat és a munkalap adatait.
+6. Meghívja a predikciós modult.
+7. Ellenőrzi, hogy a predikció eltárolta-e az eredményt.
+8. Két eredményt küld a CMMS felé.
+9. A job `done`, `not_found` vagy `error` állapotba kerül.
 
-- Asset ellenorzes DB-ben, szukseg eseten CMMS-bol betoltes (`cmms_get_assets`).
-- Failure type ellenorzes es CMMS fallback (`cmms_get_failure_types`).
+A feldolgozás közben egy heartbeat 30 másodpercenként frissíti az
+`updated_at` mezőt. A tíz perce heartbeat nélkül maradt `processing` feladatokat
+a worker automatikusan újra sorba állítja. Ezt 30 másodpercenként ellenőrzi.
 
-## `asset_failure_type_predict` specifikus elokeszites
+## CMMS-kapcsolat
 
-- `failure_type_ids` nem lehet ures.
-- CMMS-bol lekeri az `asset_failure_types` adatokat.
-- `asset_id + failure_type_id -> asset_failure_type_id` lekepest epit.
-- Upserteli az `asset_failure_type` tablakat.
-- CMMS `asset_failure_type_operations` alapjan ellenorzi az operation tipust (`BOTH`, `CORRECTIVE`, `PREVENTIVE`).
+A worker az alábbi hívásokat használja:
 
-## Operation es maintenance list ellenorzes
+```text
+GET  {CMMS_BASE_URL}/dt/asset_failure_causes/{asset_id}
+POST {CMMS_BASE_URL}/dt/asset_prediction
+POST {CMMS_BASE_URL}/dt/asset_failure_cause_prediction
+```
 
-- Minden `operation_id`-hoz biztosit helyi `operation` rekordot (idempotens insert).
-- Ellenorzi vagy betolti az operation-maintenance mappingokat.
-- DB: `operations_maintenance_list`.
-- CMMS fallback: `cmms_get_operation_maintenance_lists`.
+Mindegyik kérés fejléce:
 
-## Asset es AFT-AML relaciok
+```text
+x-api-key: <CMMS_TOKEN>
+```
 
-- Biztositja az `asset_maintenance_list` sorokat (`cmms_get_asset_maintenance_lists` fallback).
-- `asset_failure_type_predict` eseten biztositja az `asset_failure_type_asset_maintenance_list` relaciokat.
+A teljes HTTP-timeout 10 másodperc, a kapcsolódási és olvasási timeout 5-5
+másodperc. Ha a CMMS nem érhető el, az API és az adatbázis ettől még működhet,
+de a worker nem tudja sikeresen befejezni a külső adatot igénylő jobokat.
 
-## Predikcio es perzisztalas
+## Jobállapotok
 
-- Horizont: `prediction_future_time = maintenance_end_time + 7 nap`.
-- Predikcio: `predict(...)`.
-- `asset_predict` eseten a jelenlegi implementacio `predicted_reliability = 1.0` erteket ad.
-- `asset_failure_type_predict` eseten random valoszinusegi eloszlast general a megadott `failure_type_ids` listara.
-- `predicted_reliability` clampelve van `0.0..0.99` koze.
-- DB insert: `prediction` tabla.
-- JSON mentes: `<DATA_DIR>/<prediction_id>.json`.
-- CMMS POST: `/asset_prediction` vagy `/asset_failure_type_prediction`.
+| Állapot | Jelentés |
+| --- | --- |
+| `queued` | feldolgozásra vár |
+| `processing` | egy worker lefoglalta |
+| `done` | a teljes feldolgozás és a CMMS POST-ok sikerültek |
+| `not_found` | szükséges helyi vagy CMMS-adat hiányzik |
+| `error` | validációs, predikciós, adatbázis- vagy CMMS-hiba történt |
 
-## CMMS integracio
+Az aktuális állapotok lekérdezése:
 
-GET:
-
-- `/assets?asset_id=...`
-- `/failure_types/{failure_type_id}`
-- `/maintenance_lists?maintenance_list_id=...`
-- `/operation_maintenance_lists?operation_id=...`
-- `/asset_failure_types` vagy `/asset_failure_types/{asset_id}`
-- `/asset_failure_types_operations?asset_id=...&failure_type_id=...`
-- `/asset_maintenance_lists?asset_id=...`
-
-POST:
-
-- `/asset_prediction`
-- `/asset_failure_type_prediction`
-
-Auth header:
-
-- `x-api-key: <CMMS_TOKEN>`
-
-Timeoutok:
-
-- total 10s, connect 5s, read 5s
-
-## Idempotencia
-
-- `request_hash` determinisztikus JSON hash (`sort_keys=True`).
-- datetime mezok ISO formatumban kerulnek hashelesre.
-
-## Ismert korlatok
-
-- A predikcios logika jelenleg placeholder jellegu.
-- `default_reliability` parametert az API fogadja, de a `predict()` meg nem hasznalja.
-- Csak a `prediction_jobs` tabla jon letre automatikusan startupkor; mas tablaknak letezniuk kell.
+```powershell
+docker compose exec db psql -U dt_admin -d dt_db_cmms -c "SELECT job_id, workorder_id, status, error_message, updated_at FROM prediction_jobs ORDER BY job_id DESC LIMIT 20;"
+```

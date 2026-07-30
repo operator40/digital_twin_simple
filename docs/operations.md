@@ -1,120 +1,133 @@
-﻿# digital_twin_simple - Runtime Documentation (updated)
+# Üzemeltetési útmutató
 
-This document reflects the current implementation in the repository.
+Minden parancsot a projekt gyökérkönyvtárából futtass PowerShellben.
 
-## Main Components
+## Indítás
 
-- API (FastAPI, async): `app/main.py`
-- Data schemas (Pydantic): `app/schemas.py`
-- DB setup (async API + sync worker): `app/db.py`
-- ORM models: `app/models.py`
-- Worker (DB queue processor): `app/worker.py`
-- Prediction logic: `app/predict.py`
-- CMMS integration: `app/cmms.py`
-- Utilities: `app/utils.py`
-- Settings/env: `app/settings.py`
+Teljes rendszer:
 
-## API Contracts
+```powershell
+docker compose up --build -d
+```
 
-### POST `/asset_predict`
+CMMS nélküli fejlesztői üzem, worker nélkül:
 
-- Request model: `AssetPredictIn`
-- Response model: `AssetPredictOut`
-- Behavior: idempotent queueing via `request_hash`, returns `prediction_id`.
+```powershell
+docker compose up --build -d db db-init api
+```
 
-### POST `/asset_failure_type_predict`
+Állapotellenőrzés:
 
-- Request model: `AssetFailureTypePredictIn`
-- Response model: `AssetFailureTypePredictOut`
-- Behavior: idempotent queueing via `request_hash`, returns `prediction_id`.
+```powershell
+docker compose ps -a
+```
 
-## End-to-End Flow
+Elvárt állapotok:
 
-1. API validates request body via Pydantic.
-2. API computes idempotency hash (`request_hash`).
-3. API checks `prediction_jobs` by `request_hash`.
-4. If match exists, API returns existing `prediction_id` or `job_id`.
-5. Otherwise API inserts a new job with status `queued` and `endpoint_type`.
-6. Worker claims one queued job using `FOR UPDATE SKIP LOCKED`, sets status `processing`.
-7. Worker processes the job and writes outputs.
-8. Worker updates job status to `done`, `not_found`, or `error`.
+- `db`: `Up ... (healthy)`;
+- `api`: `Up ... (healthy)`;
+- `db-init`: `Exited (0)`;
+- `worker`: `Up`, ha a CMMS elérhető; különben szándékosan leállítható.
 
-## Worker Details
+## Gyors működési ellenőrzés
 
-Claim and retry behavior:
+```powershell
+Invoke-WebRequest http://localhost:8000/docs -UseBasicParsing |
+    Select-Object StatusCode
 
-- `claim_one_job(session)` claims one queued row and marks it `processing`.
-- `requeue_stuck_jobs(session)` requeues stale `processing` jobs older than 120 seconds if `retry_count < 5`.
-- Above the retry limit, jobs are marked `error` with `Retry limit exceeded`.
+docker compose exec db pg_isready -U dt_admin -d dt_db_cmms
+```
 
-Validation and normalization:
+Az elvárt eredmény HTTP `200`, illetve `accepting connections`.
 
-- Worker re-validates `job.payload` using `AssetPredictIn` or `AssetFailureTypePredictIn`.
-- `failure_type_ids` is normalized to `list[int]`.
+## Naplók
 
-Data preparation:
+```powershell
+docker compose logs --tail=100 api
+docker compose logs --tail=100 worker
+docker compose logs --tail=100 db
+docker compose logs --tail=100 db-init
+```
 
-- Asset existence: DB lookup first, CMMS fallback `cmms_get_assets`.
-- Failure type existence: DB lookup first, CMMS fallback `cmms_get_failure_types`.
-- Operation to maintenance mapping: DB `operations_maintenance_list`, CMMS fallback `cmms_get_operation_maintenance_lists`.
-- Asset to maintenance mapping: DB `asset_maintenance_list`, CMMS fallback `cmms_get_asset_maintenance_lists`.
+Folyamatos követéshez:
 
-`asset_failure_type_predict` specific checks:
+```powershell
+docker compose logs -f worker
+```
 
-- `failure_type_ids` must be non-empty.
-- Worker fetches `cmms_get_asset_failure_types(asset_id)`.
-- Builds mapping `(asset_id, failure_type_id) -> asset_failure_type_id`.
-- Upserts local `asset_failure_type` rows.
-- Fetches and validates operation types from `cmms_get_asset_failure_type_operations`.
+A követés `Ctrl+C`-vel megszakítható; ettől a háttérben futó konténerek nem
+állnak le.
 
-Prediction and persistence:
+## Jobok ellenőrzése
 
-- Prediction horizon: `prediction_future_time = maintenance_end_time + 7 days`.
-- Prediction function: `predict(...)` from `app/predict.py`.
-- Current behavior: `asset_predict` returns reliability 1.0, failure-type mode returns random probabilities.
-- `predicted_reliability` is clamped to `[0.0, 0.99]` before DB insert.
+```powershell
+docker compose exec db psql -U dt_admin -d dt_db_cmms -c "SELECT job_id, workorder_id, status, error_message, created_at, updated_at FROM prediction_jobs ORDER BY job_id DESC LIMIT 20;"
+```
 
-Persisted outputs:
+Az `error_message` mutatja, hogy adat-, predikciós vagy CMMS-hiba történt-e.
 
-- DB: insert into `prediction`.
-- File: `DATA_DIR/<prediction_id>.json`.
-- CMMS POST: `/asset_prediction` or `/asset_failure_type_prediction`.
+## Újraindítás és leállítás
 
-## Job Status Lifecycle
+```powershell
+# Egy szolgáltatás újraindítása
+docker compose restart api
 
-- `queued` -> created by API
-- `processing` -> claimed by worker
-- `done` -> prediction persisted and CMMS POST succeeded
-- `not_found` -> required external/internal data missing
-- `error` -> validation or runtime/CMMS posting failure
+# Minden szolgáltatás leállítása, volume-ok megtartásával
+docker compose down
 
-## CMMS Endpoints Used by Code
+# Ismételt indítás rebuild nélkül
+docker compose up -d
+```
 
-GET:
+Kód- vagy dependency-változtatás után:
 
-- `/assets?asset_id=...`
-- `/failure_types/{failure_type_id}`
-- `/maintenance_lists?maintenance_list_id=...`
-- `/operation_maintenance_lists?operation_id=...`
-- `/asset_failure_types` or `/asset_failure_types/{asset_id}`
-- `/asset_failure_types_operations?asset_id=...&failure_type_id=...`
-- `/asset_maintenance_lists?asset_id=...`
+```powershell
+docker compose up --build -d
+```
 
-POST:
+## Konfiguráció módosítása
 
-- `/asset_prediction`
-- `/asset_failure_type_prediction`
+A `.env` változtatása után hozd létre újra az érintett containereket:
 
-Header:
+```powershell
+docker compose up -d --force-recreate api worker
+```
 
-- `x-api-key: <CMMS_TOKEN>`
+A `POSTGRES_PASSWORD` megváltoztatása meglévő volume mellett nem módosítja
+automatikusan az adatbázisban tárolt jelszót. Ilyenkor SQL-lel kell jelszót
+váltani, vagy csak eldobható fejlesztői adatoknál új volume-ot létrehozni.
 
-Timeouts:
+## Sémaváltozás
 
-- total 10s, connect 5s, read 5s
+A `db/init/001_schema.sql` csak üres adatvolume első inicializálásakor fut. Egy
+már működő adatbázison ne a fájl átírásától várd a változást: készíts migrációt,
+mentsd az adatbázist, majd előbb tesztkörnyezetben próbáld ki.
 
-## Notes
+## Backup
 
-- IDs are integer-based in the current code.
-- `default_reliability` is accepted but not used in prediction logic.
-- Only `prediction_jobs` is auto-created at startup; other tables must exist.
+```powershell
+New-Item -ItemType Directory -Force backups
+docker compose exec db pg_dump -U dt_admin -d dt_db_cmms -Fc -f /tmp/dt_db_cmms.dump
+docker compose cp db:/tmp/dt_db_cmms.dump ./backups/dt_db_cmms.dump
+```
+
+A fájl tartalmának ellenőrzése:
+
+```powershell
+docker compose cp ./backups/dt_db_cmms.dump db:/tmp/verify.dump
+docker compose exec db pg_restore --list /tmp/verify.dump |
+    Select-Object -First 30
+```
+
+A teljes, TimescaleDB-specifikus teszt-visszaállítási folyamat a
+`docs/containerization.md` fájlban található.
+
+## Adattörlés
+
+```powershell
+docker compose down --volumes
+```
+
+Ez törli a Compose-projekthez tartozó adatbázis- és predikciós volume-okat. A
+parancs visszafordíthatatlan, ezért csak ellenőrzött backup után vagy eldobható
+fejlesztői adatoknál használd.

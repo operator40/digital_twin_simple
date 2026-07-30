@@ -1,10 +1,19 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
+from sqlalchemy import URL
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str  # sync psycopg (worker)
-    ASYNC_DATABASE_URL: str  # asyncpg (api)
+    # Existing deployments may still provide complete SQLAlchemy URLs.
+    DATABASE_URL: str | None = None
+    ASYNC_DATABASE_URL: str | None = None
+
+    # Components avoid manual URL-encoding of database passwords.
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str | None = None
+    POSTGRES_USER: str | None = None
+    POSTGRES_PASSWORD: SecretStr | None = None
 
     CMMS_BASE_URL: str
     CMMS_TOKEN: str
@@ -19,6 +28,52 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
+
+    @property
+    def sync_database_url(self) -> str | URL:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+
+        return self._component_database_url(
+            drivername="postgresql+psycopg"
+        )
+
+    @property
+    def async_database_url(self) -> str | URL:
+        if self.ASYNC_DATABASE_URL:
+            return self.ASYNC_DATABASE_URL
+
+        return self._component_database_url(
+            drivername="postgresql+asyncpg"
+        )
+
+    def _component_database_url(self, drivername: str) -> URL:
+        missing = [
+            name
+            for name, value in (
+                ("POSTGRES_DB", self.POSTGRES_DB),
+                ("POSTGRES_USER", self.POSTGRES_USER),
+                ("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD),
+            )
+            if value is None
+        ]
+
+        if missing:
+            raise ValueError(
+                "Set DATABASE_URL/ASYNC_DATABASE_URL or provide: "
+                + ", ".join(missing)
+            )
+
+        assert self.POSTGRES_PASSWORD is not None
+
+        return URL.create(
+            drivername=drivername,
+            username=self.POSTGRES_USER,
+            password=self.POSTGRES_PASSWORD.get_secret_value(),
+            host=self.POSTGRES_HOST,
+            port=self.POSTGRES_PORT,
+            database=self.POSTGRES_DB,
+        )
 
 
 settings = Settings()
