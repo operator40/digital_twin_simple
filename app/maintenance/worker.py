@@ -13,6 +13,7 @@ from ..schemas import (AssetFailureCausePredictionPayload, AssetPredictionPayloa
 from .cmms import (cmms_post_asset_failure_cause_prediction, cmms_post_asset_prediction)
 from .job_queue import (_is_admin_shutdown_error, claim_one_job, job_heartbeat, requeue_stuck_jobs, session_scope)
 from .predict import predict
+from .prediction_config import prediction_config
 
 
 POLL_INTERVAL_SEC = 1.0
@@ -269,7 +270,9 @@ def process_job(session: Session, job: PredictionJob) -> None:
         # 2. a predikciós táblák feltöltése;
         # 3. az adatbázis-commit;
         # 4. az eredmény visszaadása.
-        prediction_result = predict(job_id=job_id, maintenance_end_time=(workorder.ended), failure_start_time=(workorder.failure_date), asset_id=(sync_result.asset_id), asset_failure_cause_operations=(sync_result.asset_failure_cause_operations))
+        prediction_result = predict(job_id=job_id, maintenance_end_time=(workorder.ended), failure_start_time=(workorder.failure_date),
+                                    asset_id=(sync_result.asset_id), asset_failure_cause_operations=(sync_result.asset_failure_cause_operations),
+                                    delta_sampling=prediction_config.delta_sampling, delta_horizon=prediction_config.delta_horizon)
 
         (prediction_id, failure_type_ids, failure_type_probabilities, predicted_reliability) = validate_prediction_result(prediction_result=prediction_result)
 
@@ -278,114 +281,41 @@ def process_job(session: Session, job: PredictionJob) -> None:
         # A worker nem ír a predictions táblába.
         # Csak ellenőrzi, hogy a predikciós modul
         # elmentette-e a visszaadott eredményt.
-        verify_stored_prediction(
-            session=session,
-            prediction_id=prediction_id,
-            job_id=job_id,
-            asset_id=(
-                sync_result.asset_id
-            ),
-        )
+        verify_stored_prediction(session=session, prediction_id=prediction_id, job_id=job_id, asset_id=(sync_result.asset_id))
 
     except Exception as error:
-        if _is_admin_shutdown_error(
-            error
-        ):
+        if _is_admin_shutdown_error(error):
             raise
 
-        update_job_status(
-            session=session,
-            job_id=job_id,
-            status=JobStatus.error,
-            error_message=(
-                "Prediction failed: "
-                f"{error}"
-            ),
-        )
+        update_job_status(session=session, job_id=job_id, status=JobStatus.error, error_message=("Prediction failed: " f"{error}"))
         return
 
     try:
-        asset_prediction_payload = (
-            AssetPredictionPayload(
-                prediction_id=prediction_id,
+        asset_prediction_payload = (AssetPredictionPayload(prediction_id=prediction_id, sf_asset_id=(workorder.sf_asset_id), predicted_reliability=(predicted_reliability)))
 
-                # A CMMS felé a külső sf_asset_id
-                # asset_id néven kerül elküldésre.
-                sf_asset_id=(
-                    workorder.sf_asset_id
-                ),
+        failure_cause_payload = (AssetFailureCausePredictionPayload(prediction_id=prediction_id,
+                                                                    failure_causes=(build_failure_cause_items(asset_failurecause_ids=(asset_failurecause_ids),
+                                                                                                              failure_type_probabilities=(failure_type_probabilities)))))
 
-                predicted_reliability=(
-                    predicted_reliability
-                ),
-            )
-        )
+        asset_response = asyncio.run(cmms_post_asset_prediction(asset_prediction_payload.model_dump(mode="json", by_alias=True)))
 
-        failure_cause_payload = (AssetFailureCausePredictionPayload(prediction_id=prediction_id, failure_causes=(build_failure_cause_items(asset_failurecause_ids=(asset_failurecause_ids), failure_type_probabilities=(failure_type_probabilities)))))
+        logger.info("CMMS asset prediction response: {}", asset_response)
 
-        asset_response = asyncio.run(
-            cmms_post_asset_prediction(
-                asset_prediction_payload.model_dump(
-                    mode="json",
-                    by_alias=True,
-                )
-            )
-        )
+        failure_cause_response = asyncio.run(cmms_post_asset_failure_cause_prediction(failure_cause_payload.model_dump(mode="json")))
 
-        logger.info(
-            "CMMS asset prediction response: {}",
-            asset_response,
-        )
-
-        failure_cause_response = asyncio.run(
-            cmms_post_asset_failure_cause_prediction(
-                failure_cause_payload.model_dump(
-                    mode="json",
-                )
-            )
-        )
-
-        logger.info(
-            "CMMS failure-cause prediction "
-            "response: {}",
-            failure_cause_response,
-        )
+        logger.info("CMMS failure-cause prediction " "response: {}", failure_cause_response)
 
     except Exception as error:
-        update_job_status(
-            session=session,
-            job_id=job_id,
-            status=JobStatus.error,
-            error_message=(
-                "CMMS prediction POST failed: "
-                f"{error}"
-            ),
-        )
+        update_job_status(session=session, job_id=job_id, status=JobStatus.error, error_message=("CMMS prediction POST failed: " f"{error}"))
         return
 
-    update_job_status(
-        session=session,
-        job_id=job_id,
-        status=JobStatus.done,
-        error_message=None,
-    )
+    update_job_status(session=session, job_id=job_id, status=JobStatus.done, error_message=None)
 
-    logger.info(
-        "Prediction job completed: "
-        "job_id={}, prediction_id={}",
-        job_id,
-        prediction_id,
-    )
+    logger.info("Prediction job completed: " "job_id={}, prediction_id={}", job_id, prediction_id)
 
 
 def main() -> None:
-    """
-    Elindítja a folyamatosan futó worker loopot.
-    """
-
-    logger.info(
-        "DB queue worker started."
-    )
+    logger.info("DB queue worker started.")
 
     last_requeue = 0.0
 
@@ -402,95 +332,50 @@ def main() -> None:
             # A következő queued job lefoglalása
             # egy rövid adatbázis-sessionben.
             with session_scope() as session:
-                claimed_job = claim_one_job(
-                    session
-                )
+                claimed_job = claim_one_job(session)
 
-                job_id = (
-                    int(claimed_job.job_id)
-                    if claimed_job is not None
-                    else None
-                )
+                job_id = (int(claimed_job.job_id) if claimed_job is not None else None)
 
             if job_id is None:
-                time.sleep(
-                    POLL_INTERVAL_SEC
-                )
+                time.sleep(POLL_INTERVAL_SEC)
                 continue
 
             # A tényleges feldolgozás külön
             # adatbázis-sessionben történik.
             with session_scope() as session:
-                job = session.get(
-                    PredictionJob,
-                    job_id,
-                )
+                job = session.get(PredictionJob, job_id)
 
                 if job is None:
                     continue
 
                 try:
-                    with job_heartbeat(
-                        job_id
-                    ):
-                        process_job(
-                            session=session,
-                            job=job,
-                        )
+                    with job_heartbeat(job_id):
+                        process_job(session=session, job=job)
 
                 except Exception as error:
-                    logger.exception(
-                        "Unhandled process-job error: {}",
-                        error,
-                    )
+                    logger.exception("Unhandled process-job error: {}", error)
 
                     # Egy hibás tranzakció után új
                     # sessionben állítjuk vissza a jobot.
-                    with session_scope() as (
-                        recovery_session
-                    ):
-                        recovery_job = (
-                            recovery_session.get(
-                                PredictionJob,
-                                job_id,
-                            )
-                        )
+                    with session_scope() as (recovery_session):
+                        recovery_job = (recovery_session.get(PredictionJob, job_id))
 
                         if recovery_job is None:
                             continue
 
-                        if _is_admin_shutdown_error(
-                            error
-                        ):
-                            recovery_job.status = (
-                                JobStatus.queued
-                            )
-                            recovery_job.error_message = (
-                                "Retry: database "
-                                "connection terminated"
-                            )
+                        if _is_admin_shutdown_error(error):
+                            recovery_job.status = (JobStatus.queued)
+                            recovery_job.error_message = ("Retry: database connection terminated")
                         else:
-                            recovery_job.status = (
-                                JobStatus.error
-                            )
-                            recovery_job.error_message = (
-                                "Unhandled error: "
-                                f"{error}"
-                            )
+                            recovery_job.status = (JobStatus.error)
+                            recovery_job.error_message = ("Unhandled error: " f"{error}")
 
-                        recovery_job.updated_at = (
-                            datetime.utcnow()
-                        )
+                        recovery_job.updated_at = (datetime.utcnow())
 
         except Exception as error:
-            logger.exception(
-                "Worker loop error: {}",
-                error,
-            )
+            logger.exception("Worker loop error: {}", error)
 
-            time.sleep(
-                POLL_INTERVAL_SEC
-            )
+            time.sleep(POLL_INTERVAL_SEC)
 
 
 if __name__ == "__main__":

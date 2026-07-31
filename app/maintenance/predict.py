@@ -1,46 +1,106 @@
-from datetime import datetime, timedelta
-from typing import Sequence, Optional, List, Dict, Any
-import math
-import random
+from datetime import datetime
+from typing import Any
 
+import pandas as pd
+from sqlalchemy import select
 
-def weibull_reliability(delta_seconds: float, eta: float, beta: float) -> float:
-    # delta_seconds és eta ugyanabban a mértékegységben: másodpercet használunk
-    if eta <= 0 or beta <= 0:
-        return 0.5
-    return math.exp(-((delta_seconds / eta) ** beta))
+from ..db import SyncSessionLocal
+from ..models import (
+    AssetFailureType,
+    Prediction,
+    PredictionAssetLevel,
+)
 
 
 def predict(
-    asset_id: int,
-    prediction_future_time: datetime,
-    failure_start_time: Optional[datetime],
+    *,
+    job_id: int,
     maintenance_end_time: datetime,
-    source_sys_time: datetime,
-    operation_ids: List[int],
-    failure_type_ids: Optional[List[int]] = None,
-    eta_value: Optional[float] = None,
-    beta_value: Optional[float] = None,
-    default_reliability: Optional[Sequence[float]] = None,
-) -> Dict[str, Any]:
+    failure_start_time: datetime | None,
+    asset_id: int,
+    asset_failure_cause_operations: list[dict],
+    delta_sampling: pd.Timedelta,
+    delta_horizon: pd.Timedelta,
+) -> dict[str, Any]:
     """
-    Ha van eta/beta: Weibull megbízhatóság a maintenance_end_time → prediction_future_time horizonton.
-    Ha nincs: fallback a default_reliability átlagára (vagy 0.9).
+    Determinisztikus dummy predikciót készít.
+
+    A függvény:
+
+    1. meghatározza az eszközhöz tartozó failure_type_id értékeket;
+    2. létrehozza a predictions rekordot;
+    3. dummy idősoros megbízhatósági értékeket generál;
+    4. elmenti azokat a prediction_asset_levels táblába;
+    5. visszaadja a worker által elvárt eredményt.
     """
 
-    if not failure_type_ids:
-        return {"failure_type_ids": [], "failure_type_probability": [], "predicted_reliability": 1.0}
-    else:
-        count = len(failure_type_ids)
-        raw = [random.random() for _ in range(count)]
-        raw_sum = sum(raw) or 1.0
-        target_sum = random.random()
+    del failure_start_time
 
-        failure_type_probability = [target_sum * (r / raw_sum) for r in raw]
-        predicted_reliability = 1.0 - sum(failure_type_probability) - 0.01
+    asset_failurecause_ids = {int(item["asset_failurecause_id"]) for item in asset_failure_cause_operations}
 
-        return {"failure_type_ids": failure_type_ids, "failure_type_probability": failure_type_probability, "predicted_reliability": predicted_reliability}
+    with SyncSessionLocal() as session:
+        try:
+            failure_type_ids = list(
+                session.execute(
+                    select(AssetFailureType.failure_type_id)
+                    .where(
+                        AssetFailureType.asset_id == asset_id,
+                        AssetFailureType.asset_failurecause_id.in_(asset_failurecause_ids),
+                        AssetFailureType.failure_type_id.is_not(None),
+                    )
+                    .order_by(AssetFailureType.failure_type_id)
+                )
+                .scalars()
+                .all()
+            )
 
+            failure_type_ids = [int(failure_type_id) for failure_type_id in failure_type_ids]
 
-def compute_prediction_future_time(maintenance_end_time: datetime, days_ahead: int = 7) -> datetime:
-    return maintenance_end_time + timedelta(days=days_ahead)
+            if not failure_type_ids:
+                raise ValueError("No failure types are available for dummy prediction")
+
+            prediction = Prediction(job_id=job_id, asset_id=asset_id, asset_failure_type_id=None)
+
+            session.add(prediction)
+            session.flush()
+
+            prediction_id = int(prediction.prediction_id)
+
+            nowcast_time = pd.Timestamp(maintenance_end_time)
+
+            forecast_end = (nowcast_time + delta_horizon)
+
+            forecast_times = pd.date_range(start=nowcast_time + delta_sampling, end=forecast_end, freq=delta_sampling)
+
+            number_of_steps = len(forecast_times)
+
+            if number_of_steps == 0:
+                raise ValueError("The forecast interval contains no sampling points")
+
+            nowcast_reliability = 0.95
+            final_reliability = 0.80
+
+            for index, forecast_time in enumerate(forecast_times, start=1):
+                progress = index / number_of_steps
+
+                forecast_reliability = (nowcast_reliability - (nowcast_reliability - final_reliability) * progress)
+
+                elapsed_seconds = (forecast_time - nowcast_time).total_seconds()
+
+                session.add(PredictionAssetLevel(prediction_id=prediction_id, forecast_time=(forecast_time.to_pydatetime()),
+                                                 nowcast_reliability=(nowcast_reliability), forecast_reliability=(forecast_reliability),
+                                                 nowcast_virtual_age=0.0, forecast_virtual_age=(float(elapsed_seconds)), nowcast_time=(nowcast_time.to_pydatetime())))
+
+            total_failure_probability = (1.0 - final_reliability)
+
+            probability_per_failure_type = (total_failure_probability / len(failure_type_ids))
+
+            failure_type_probabilities = [probability_per_failure_type for _ in failure_type_ids]
+
+            session.commit()
+
+            return {"prediction_id": prediction_id, "failure_type_ids": failure_type_ids, "failure_type_probability": (failure_type_probabilities), "predicted_reliability": (final_reliability)}
+
+        except Exception:
+            session.rollback()
+            raise

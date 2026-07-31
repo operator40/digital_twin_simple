@@ -1,0 +1,3 @@
+[prediction]
+delta_sampling = "15min"
+delta_horizon = "7days"

@@ -71,8 +71,11 @@ services:
   worker:
     <<: *app-service
     command: ["python", "-m", "app.maintenance.worker"]
+    environment:
+      PREDICTION_CONFIG_PATH: /app/config/prediction.toml
     volumes:
       - prediction_data:/data/predictions
+      - ./config/prediction.toml:/app/config/prediction.toml:ro
     depends_on:
       db-init:
         condition: service_completed_successfully
