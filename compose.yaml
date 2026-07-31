@@ -8,6 +8,7 @@ x-app-environment: &app-environment
   CMMS_TOKEN: ${CMMS_TOKEN:-replace-me}
   INBOUND_API_KEY: ${INBOUND_API_KEY:-local-api-key}
   DATA_DIR: /data/predictions
+  PREDICTION_CONFIG_PATH: /app/config/prediction.toml
 
 x-app-service: &app-service
   image: digital-twin-simple:local
@@ -71,8 +72,6 @@ services:
   worker:
     <<: *app-service
     command: ["python", "-m", "app.maintenance.worker"]
-    environment:
-      PREDICTION_CONFIG_PATH: /app/config/prediction.toml
     volumes:
       - prediction_data:/data/predictions
       - ./config/prediction.toml:/app/config/prediction.toml:ro
