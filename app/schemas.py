@@ -9,21 +9,25 @@ class AssetPredictIn(BaseModel):
     workorder_id: int = Field(gt=0)
     sf_asset_id: int = Field(alias="asset_id", gt=0)
     failure_cause_id: Optional[int] = Field(default=None, gt=0)
-    failure_date: datetime
+    failure_date: datetime | None = None
     ended: datetime
     type: Literal["PREVENTIVE", "CORRECTIVE"]
     operation_ids: list[int] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_asset_predict(self):
-        if self.ended < self.failure_date:
+        if (self.failure_date is not None and self.ended < self.failure_date):
             raise ValueError("ended cannot be earlier than failure_date")
 
         if any(operation_id <= 0 for operation_id in self.operation_ids):
             raise ValueError("Every operation_id must be greater than zero")
 
-        if (self.type.strip().upper() != "PREVENTIVE" and self.failure_cause_id is None):
-            raise ValueError("failure_cause_id is required for a non-preventive work order")
+        if self.type == "CORRECTIVE":
+            if self.failure_date is None:
+                raise ValueError("failure_date is required for a corrective work order")
+
+            if self.failure_cause_id is None:
+                raise ValueError("failure_cause_id is required for a corrective work order")
 
         return self
 
