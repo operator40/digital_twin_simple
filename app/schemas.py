@@ -16,9 +16,6 @@ class AssetPredictIn(BaseModel):
 
     @model_validator(mode="after")
     def validate_asset_predict(self):
-        if (self.failure_date is not None and self.ended < self.failure_date):
-            raise ValueError("ended cannot be earlier than failure_date")
-
         if self.type == "CORRECTIVE":
             if self.failure_date is None:
                 raise ValueError("failure_date is required for a corrective work order")

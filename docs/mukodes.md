@@ -22,7 +22,7 @@ A kérés mezői:
 | `workorder_id` | pozitív egész | kötelező |
 | `asset_id` | pozitív egész | a kódban `sf_asset_id` néven kezelt külső CMMS-azonosító |
 | `failure_cause_id` | pozitív egész vagy `null` | nem preventív munkalapnál kötelező |
-| `failure_date` | ISO 8601 dátum-idő | nem lehet későbbi az `ended` értékénél |
+| `failure_date` | ISO 8601 dátum-idő | ha későbbi az `ended` értékénél, az üzenet mentésre kerül, de nincs predikció |
 | `ended` | ISO 8601 dátum-idő | kötelező |
 | `type` | `PREVENTIVE` vagy `CORRECTIVE` | kötelező |
 | `operation_ids` | egészek listája | opcionális; hiányzó vagy üres lista esetén nincs predikció |
@@ -42,6 +42,7 @@ ezzel keres a `public.prediction_jobs` táblában.
 
 - új, műveleteket tartalmazó kérés: új `queued` rekord jön létre;
 - új, `operation_ids` nélküli vagy üres listás kérés: új `done` rekord jön létre, amelyet a worker nem dolgoz fel;
+- új, `ended` utáni `failure_date` értékű kérés: új `done` rekord jön létre, amelyet a worker nem dolgoz fel;
 - azonos `queued`, `processing` vagy `done` kérés: a meglévő `job_id` tér vissza;
 - azonos `error` vagy `not_found` kérés: ugyanaz a rekord újra `queued` lesz.
 

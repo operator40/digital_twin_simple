@@ -107,7 +107,13 @@ async def asset_predict(
         job_id,
         body.workorder_id,
         body.sf_asset_id,
-        bool(body.operation_ids),
+        bool(
+            body.operation_ids
+            and (
+                body.failure_date is None
+                or body.failure_date <= body.ended
+            )
+        ),
     )
 
     return AssetPredictAccepted(job_id=job_id)
