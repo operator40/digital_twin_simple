@@ -60,7 +60,7 @@ A fő lépések:
 1. A job `processing` állapotba kerül.
 2. A worker újra validálja az eltárolt payloadot.
 3. A CMMS-től lekéri az eszköz hibaokait.
-4. A helyi `assets.sf_asset_id` alapján feloldja a belső `asset_id` értéket.
+4. A helyi `assets.sf_asset_id` alapján feloldja a belső `asset_id` értéket; ha az eszköz még nem létezik, automatikusan létrehozza.
 5. Szinkronizálja a hibaokokat és a munkalap adatait.
 6. Meghívja a predikciós modult.
 7. Ellenőrzi, hogy a predikció eltárolta-e az eredményt.

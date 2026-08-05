@@ -97,19 +97,40 @@ def get_failure_causes(payload: dict) -> list[dict]:
     return normalized_failure_causes
 
 
-def resolve_asset_id(session: Session, sf_asset_id: int) -> int:
+def ensure_asset_id(session: Session, sf_asset_id: int) -> int:
     """
     A CMMS-től érkező külső asset_id alapján
     visszaadja a saját rendszer belső asset_id
-    értékét.
+    értékét. Ha az eszköz még nem létezik,
+    létrehozza az assets rekordot.
+
+    A CMMS-válasz nem tartalmaz eszköznevet,
+    ezért új rekordnál az asset_name NULL marad.
     """
 
-    asset_id = session.execute(select(Asset.asset_id).where(Asset.sf_asset_id == int(sf_asset_id))).scalar_one_or_none()
+    normalized_sf_asset_id = normalize_positive_int(
+        sf_asset_id,
+        "sf_asset_id",
+    )
 
-    if asset_id is None:
-        raise DataSyncNotFoundError("No local asset was found for " f"sf_asset_id={sf_asset_id}")
+    asset_id = session.execute(
+        select(Asset.asset_id).where(
+            Asset.sf_asset_id == normalized_sf_asset_id
+        )
+    ).scalar_one_or_none()
 
-    return int(asset_id)
+    if asset_id is not None:
+        return int(asset_id)
+
+    asset = Asset(
+        sf_asset_id=normalized_sf_asset_id,
+        asset_name=None,
+    )
+
+    session.add(asset)
+    session.flush()
+
+    return int(asset.asset_id)
 
 
 def build_asset_failure_cause_operations(payload: dict) -> list[dict]:
@@ -706,7 +727,7 @@ def synchronize_workorder(
         )
     )
 
-    asset_id = resolve_asset_id(
+    asset_id = ensure_asset_id(
         session=session,
         sf_asset_id=workorder.sf_asset_id,
     )
