@@ -67,6 +67,10 @@ A fő lépések:
 8. Két eredményt küld a CMMS felé.
 9. A job `done`, `not_found` vagy `error` állapotba kerül.
 
+A CMMS a `default_occurrence_probability` értékét 0 és 99 közötti
+százalékos skálán adja át. A szinkronizálás ezt 100-zal osztja, és az
+`asset_failure_types` táblában 0 és 0,99 közötti valószínűségként tárolja.
+
 A feldolgozás közben egy heartbeat 30 másodpercenként frissíti az
 `updated_at` mezőt. A tíz perce heartbeat nélkül maradt `processing` feladatokat
 a worker automatikusan újra sorba állítja. Ezt 30 másodpercenként ellenőrzi.

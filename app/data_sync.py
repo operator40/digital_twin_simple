@@ -367,13 +367,16 @@ def ensure_asset_failure_type(
                 f"for asset_failurecause_id={asset_failurecause_id}"
             ) from error
 
-        if not 0.0 <= probability <= 1.0:
+        if not 0.0 <= probability <= 99.0:
             raise DataSyncValidationError(
-                "default_occurrence_probability must be between 0 and 1 "
-                f"for asset_failurecause_id={asset_failurecause_id}"
+                "default_occurrence_probability must be between 0 and 99; "
+                f"received={probability} for "
+                f"asset_failurecause_id={asset_failurecause_id}"
             )
 
-        asset_failure_type.default_occurrence_probability = probability
+        asset_failure_type.default_occurrence_probability = (
+            probability / 100.0
+        )
 
     severity_raw = failure_cause.get(
         "severity"
