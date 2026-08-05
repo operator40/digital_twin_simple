@@ -97,9 +97,10 @@ Invoke-RestMethod `
     -Body $body
 ```
 
-Sikeres sorba állításkor az API `202 Accepted` választ és egy `job_id` értéket
-ad vissza. Azonos tartalmú kérés nem hoz létre új sort: a rendszer a kérés
-SHA-256 hash-e alapján a meglévő feladat azonosítóját adja vissza.
+Sikeres fogadáskor az API `202 Accepted` választ és egy `job_id` értéket ad
+vissza. Hiányzó vagy üres `operation_ids` esetén az üzenet elmentésre kerül,
+de predikció nem indul. Azonos tartalmú kérés nem hoz létre új sort: a rendszer
+a kérés SHA-256 hash-e alapján a meglévő feladat azonosítóját adja vissza.
 
 ## Hasznos parancsok
 

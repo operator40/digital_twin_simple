@@ -25,7 +25,7 @@ A kérés mezői:
 | `failure_date` | ISO 8601 dátum-idő | nem lehet későbbi az `ended` értékénél |
 | `ended` | ISO 8601 dátum-idő | kötelező |
 | `type` | `PREVENTIVE` vagy `CORRECTIVE` | kötelező |
-| `operation_ids` | pozitív egészek nem üres listája | kötelező |
+| `operation_ids` | egészek listája | opcionális; hiányzó vagy üres lista esetén nincs predikció |
 
 A sikeres kérés `202 Accepted` választ ad:
 
@@ -40,7 +40,8 @@ A sikeres kérés `202 Accepted` választ ad:
 Az API a normalizált JSON-kérésből determinisztikus SHA-256 hash-t készít, majd
 ezzel keres a `public.prediction_jobs` táblában.
 
-- új kérés: új `queued` rekord jön létre;
+- új, műveleteket tartalmazó kérés: új `queued` rekord jön létre;
+- új, `operation_ids` nélküli vagy üres listás kérés: új `done` rekord jön létre, amelyet a worker nem dolgoz fel;
 - azonos `queued`, `processing` vagy `done` kérés: a meglévő `job_id` tér vissza;
 - azonos `error` vagy `not_found` kérés: ugyanaz a rekord újra `queued` lesz.
 

@@ -102,11 +102,12 @@ async def asset_predict(
         ) from exc
 
     log.info(
-        "Prediction job accepted: "
-        "job_id=%s, workorder_id=%s, sf_asset_id=%s",
+        "Asset predict message accepted: "
+        "job_id=%s, workorder_id=%s, sf_asset_id=%s, prediction_queued=%s",
         job_id,
         body.workorder_id,
         body.sf_asset_id,
+        bool(body.operation_ids),
     )
 
     return AssetPredictAccepted(job_id=job_id)

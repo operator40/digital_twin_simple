@@ -101,7 +101,11 @@ async def enqueue_prediction_job(
         workorder_id=body.workorder_id,
         request_hash=request_hash,
         payload=payload,
-        status=JobStatus.queued,
+        status=(
+            JobStatus.queued
+            if body.operation_ids
+            else JobStatus.done
+        ),
         endpoint_type=endpoint_type,
         error_message=None,
         created_at=now,
