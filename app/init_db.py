@@ -97,6 +97,14 @@ def main() -> None:
         if not has_jobstatus:
             raise RuntimeError("The public.jobstatus enum is missing")
 
+        connection.execute(
+            text(
+                "ALTER TYPE public.jobstatus "
+                "ADD VALUE IF NOT EXISTS 'skipped'"
+            )
+        )
+        connection.commit()
+
     log.info("Database schema is valid")
 
 

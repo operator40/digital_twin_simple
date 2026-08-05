@@ -41,9 +41,9 @@ Az API a normalizált JSON-kérésből determinisztikus SHA-256 hash-t készít,
 ezzel keres a `public.prediction_jobs` táblában.
 
 - új, műveleteket tartalmazó kérés: új `queued` rekord jön létre;
-- új, `operation_ids` nélküli vagy üres listás kérés: új `done` rekord jön létre, amelyet a worker nem dolgoz fel;
-- új, `ended` utáni `failure_date` értékű kérés: új `done` rekord jön létre, amelyet a worker nem dolgoz fel;
-- azonos `queued`, `processing` vagy `done` kérés: a meglévő `job_id` tér vissza;
+- új, `operation_ids` nélküli vagy üres listás kérés: új `skipped` rekord jön létre, amelyet a worker nem dolgoz fel; az ok az `error_message` mezőbe kerül;
+- új, `ended` utáni `failure_date` értékű kérés: új `skipped` rekord jön létre, amelyet a worker nem dolgoz fel; az ok az `error_message` mezőbe kerül;
+- azonos `queued`, `processing`, `done` vagy `skipped` kérés: a meglévő `job_id` tér vissza;
 - azonos `error` vagy `not_found` kérés: ugyanaz a rekord újra `queued` lesz.
 
 Két egyidejű, azonos kérésből a `request_hash` egyedi indexe miatt csak egy job
@@ -65,7 +65,7 @@ A fő lépések:
 6. Meghívja a predikciós modult.
 7. Ellenőrzi, hogy a predikció eltárolta-e az eredményt.
 8. Két eredményt küld a CMMS felé.
-9. A job `done`, `not_found` vagy `error` állapotba kerül.
+9. A job `done`, `skipped`, `not_found` vagy `error` állapotba kerül.
 
 A CMMS a `default_occurrence_probability` értékét 0 és 99 közötti
 százalékos skálán adja át. A szinkronizálás ezt 100-zal osztja, és az

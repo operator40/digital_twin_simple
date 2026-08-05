@@ -18,6 +18,24 @@ RETRYABLE_STATUSES = {
 }
 
 
+def prediction_skip_reason(body: AssetPredictIn) -> str | None:
+    reasons: list[str] = []
+
+    if not body.operation_ids:
+        reasons.append("operation_ids is missing or empty")
+
+    if (
+        body.failure_date is not None
+        and body.failure_date > body.ended
+    ):
+        reasons.append("failure_date is later than ended")
+
+    if not reasons:
+        return None
+
+    return "Prediction skipped: " + "; ".join(reasons)
+
+
 async def reuse_existing_job(
     session: AsyncSession,
     job: PredictionJob,
@@ -26,7 +44,7 @@ async def reuse_existing_job(
     Kezeli az ismételten beérkező, teljesen
     azonos kérést.
 
-    queued, processing vagy done állapotnál
+    queued, processing, done vagy skipped állapotnál
     csak visszaadja a meglévő job_id értéket.
 
     error vagy not_found állapotnál ugyanazt
@@ -96,24 +114,15 @@ async def enqueue_prediction_job(
         )
 
     now = datetime.utcnow()
+    skip_reason = prediction_skip_reason(body)
 
     job = PredictionJob(
         workorder_id=body.workorder_id,
         request_hash=request_hash,
         payload=payload,
-        status=(
-            JobStatus.done
-            if (
-                not body.operation_ids
-                or (
-                    body.failure_date is not None
-                    and body.failure_date > body.ended
-                )
-            )
-            else JobStatus.queued
-        ),
+        status=(JobStatus.skipped if skip_reason else JobStatus.queued),
         endpoint_type=endpoint_type,
-        error_message=None,
+        error_message=skip_reason,
         created_at=now,
         updated_at=now,
     )

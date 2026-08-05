@@ -4,6 +4,7 @@ CREATE TYPE public.jobstatus AS ENUM (
     'queued',
     'processing',
     'done',
+    'skipped',
     'not_found',
     'error'
 );

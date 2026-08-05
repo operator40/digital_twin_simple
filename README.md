@@ -98,10 +98,11 @@ Invoke-RestMethod `
 ```
 
 Sikeres fogadáskor az API `202 Accepted` választ és egy `job_id` értéket ad
-vissza. Hiányzó vagy üres `operation_ids` esetén az üzenet elmentésre kerül,
-de predikció nem indul. Ugyanez történik akkor is, ha a `failure_date` későbbi,
-mint az `ended`. Azonos tartalmú kérés nem hoz létre új sort: a rendszer a kérés
-SHA-256 hash-e alapján a meglévő feladat azonosítóját adja vissza.
+vissza. Hiányzó vagy üres `operation_ids` esetén az üzenet `skipped` állapotban
+kerül mentésre, a kihagyás oka bekerül az `error_message` mezőbe, és predikció
+nem indul. Ugyanez történik akkor is, ha a `failure_date` későbbi, mint az
+`ended`. Azonos tartalmú kérés nem hoz létre új sort: a rendszer a kérés SHA-256
+hash-e alapján a meglévő feladat azonosítóját adja vissza.
 
 ## Hasznos parancsok
 

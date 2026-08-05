@@ -27,6 +27,7 @@ class JobStatus(str, enum.Enum):
     queued = "queued"
     processing = "processing"
     done = "done"
+    skipped = "skipped"
     not_found = "not_found"
     error = "error"
 
