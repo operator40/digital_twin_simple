@@ -311,8 +311,8 @@ def process_job(session: Session, job: PredictionJob) -> None:
         asset_prediction_payload = (AssetPredictionPayload(prediction_id=prediction_id, sf_asset_id=(workorder.sf_asset_id), predicted_reliability=(predicted_reliability)))
 
         failure_cause_payload = (AssetFailureCausePredictionPayload(prediction_id=prediction_id,
-                                                                    failure_causes=(build_failure_cause_items(asset_failurecause_ids=(asset_failurecause_ids),
-                                                                                                              failure_type_probabilities=(failure_type_probabilities)))))
+                                                                    failure_causes=(build_failure_cause_items(asset_failurecause_id=(asset_failurecause_ids),
+                                                                                                              predicted_occurrence_probability=(failure_type_probabilities)))))
 
         asset_response = asyncio.run(cmms_post_asset_prediction(asset_prediction_payload.model_dump(mode="json", by_alias=True)))
 
