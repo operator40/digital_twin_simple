@@ -41,7 +41,7 @@ Az API a normalizált JSON-kérésből determinisztikus SHA-256 hash-t készít,
 ezzel keres a `public.prediction_jobs` táblában.
 
 - új, műveleteket tartalmazó kérés: új `queued` rekord jön létre;
-- új, `operation_ids` nélküli vagy üres listás kérés: új `skipped` rekord jön létre, amelyet a worker nem dolgoz fel; az ok az `error_message` mezőbe kerül;
+- új, `operation_ids` nélküli vagy üres listás kérés: a worker lekéri és elmenti a CMMS-adatokat, majd predikció indítása nélkül `skipped` állapotra vált; az ok az `error_message` mezőbe kerül;
 - új, `ended` utáni `failure_date` értékű kérés: új `skipped` rekord jön létre, amelyet a worker nem dolgoz fel; az ok az `error_message` mezőbe kerül;
 - azonos `queued`, `processing`, `done` vagy `skipped` kérés: a meglévő `job_id` tér vissza;
 - azonos `error` vagy `not_found` kérés: ugyanaz a rekord újra `queued` lesz.

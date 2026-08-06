@@ -260,6 +260,23 @@ def process_job(session: Session, job: PredictionJob) -> None:
         update_job_status(session=session, job_id=job_id, status=JobStatus.error, error_message=("Workorder synchronization failed: " f"{error}"))
         return
 
+    if not workorder.operation_ids:
+        update_job_status(
+            session=session,
+            job_id=job_id,
+            status=JobStatus.skipped,
+            error_message=(
+                "Prediction skipped: operation_ids is missing or empty"
+            ),
+        )
+
+        logger.info(
+            "Prediction skipped after CMMS synchronization: job_id={}, reason={}",
+            job_id,
+            "operation_ids is missing or empty",
+        )
+        return
+
     try:
         # A predikciós modul pontosan ezt az öt
         # előre meghatározott bemenetet kapja.

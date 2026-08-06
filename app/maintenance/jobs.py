@@ -21,9 +21,6 @@ RETRYABLE_STATUSES = {
 def prediction_skip_reason(body: AssetPredictIn) -> str | None:
     reasons: list[str] = []
 
-    if not body.operation_ids:
-        reasons.append("operation_ids is missing or empty")
-
     if (
         body.failure_date is not None
         and body.failure_date > body.ended
