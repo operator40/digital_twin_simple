@@ -151,17 +151,17 @@ def verify_stored_prediction(session: Session, prediction_id: int, job_id: int, 
     return stored_prediction
 
 
-def build_failure_cause_items(asset_failurecause_id: list[int], predicted_occurrence_probability: list[float]) -> list[FailureCausePredictionItem]:
+def build_failure_cause_items(asset_failurecause_ids: list[int], failure_type_probabilities: list[float]) -> list[FailureCausePredictionItem]:
     """
     A feloldott asset_failurecause_id értékeket
     összepárosítja a predikció valószínűségeivel.
     """
 
-    if (len(asset_failurecause_id) != len(predicted_occurrence_probability)):
-        raise ValueError("asset_failurecause_id and predicted_occurrence_probability must have the same number of elements")
+    if (len(asset_failurecause_ids) != len(failure_type_probabilities)):
+        raise ValueError("asset_failurecause_ids and failure_type_probabilities must have the same number of elements")
 
-    return [FailureCausePredictionItem(asset_failurecause_id=(asset_failurecause_id), predicted_reliability=probability)
-            for (asset_failurecause_id, probability) in zip(asset_failurecause_id, predicted_occurrence_probability)]
+    return [FailureCausePredictionItem(asset_failurecause_id=(asset_failurecause_id), predicted_occurrence_probability=probability)
+            for (asset_failurecause_id, probability) in zip(asset_failurecause_ids, failure_type_probabilities)]
 
 
 def resolve_asset_failurecause_ids(session: Session, asset_id: int, failure_type_ids: list[int]) -> list[int]:
@@ -311,8 +311,8 @@ def process_job(session: Session, job: PredictionJob) -> None:
         asset_prediction_payload = (AssetPredictionPayload(prediction_id=prediction_id, sf_asset_id=(workorder.sf_asset_id), predicted_reliability=(predicted_reliability)))
 
         failure_cause_payload = (AssetFailureCausePredictionPayload(prediction_id=prediction_id,
-                                                                    failure_causes=(build_failure_cause_items(asset_failurecause_id=(asset_failurecause_ids),
-                                                                                                              predicted_occurrence_probability=(failure_type_probabilities)))))
+                                                                    failure_causes=(build_failure_cause_items(asset_failurecause_ids=(asset_failurecause_ids),
+                                                                                                              failure_type_probabilities=(failure_type_probabilities)))))
 
         asset_response = asyncio.run(cmms_post_asset_prediction(asset_prediction_payload.model_dump(mode="json", by_alias=True)))
 
