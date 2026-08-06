@@ -312,7 +312,7 @@ def process_job(session: Session, job: PredictionJob) -> None:
 
         failure_cause_payload = (AssetFailureCausePredictionPayload(prediction_id=prediction_id,
                                                                     failure_causes=(build_failure_cause_items(asset_failurecause_ids=(asset_failurecause_ids),
-                                                                                                              predicted_occurrence_probability=(failure_type_probabilities)))))
+                                                                                                              predicted_occurence_probability=(failure_type_probabilities)))))
 
         asset_response = asyncio.run(cmms_post_asset_prediction(asset_prediction_payload.model_dump(mode="json", by_alias=True)))
 
