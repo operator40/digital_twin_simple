@@ -8,6 +8,7 @@ from ..db import SyncSessionLocal
 from ..models import (
     AssetFailureType,
     Prediction,
+    PredictionAssetFailureTypeLevel,
     PredictionAssetLevel,
 )
 
@@ -28,9 +29,10 @@ def predict(
     A függvény:
 
     1. meghatározza az eszközhöz tartozó failure_type_id értékeket;
-    2. létrehozza a predictions rekordot;
+    2. létrehozza az eszköz- és hibaoktípus-szintű predictions rekordokat;
     3. dummy idősoros megbízhatósági értékeket generál;
-    4. elmenti azokat a prediction_asset_levels táblába;
+    4. elmenti azokat a prediction_asset_levels és
+       prediction_asset_failure_type_levels táblákba;
     5. visszaadja a worker által elvárt eredményt.
     """
 
@@ -40,9 +42,12 @@ def predict(
 
     with SyncSessionLocal() as session:
         try:
-            failure_type_ids = list(
+            failure_type_rows = (
                 session.execute(
-                    select(AssetFailureType.failure_type_id)
+                    select(
+                        AssetFailureType.failure_type_id,
+                        AssetFailureType.asset_failure_type_id,
+                    )
                     .where(
                         AssetFailureType.asset_id == asset_id,
                         AssetFailureType.asset_failurecause_id.in_(asset_failurecause_ids),
@@ -50,21 +55,52 @@ def predict(
                     )
                     .order_by(AssetFailureType.failure_type_id)
                 )
-                .scalars()
                 .all()
             )
 
-            failure_type_ids = [int(failure_type_id) for failure_type_id in failure_type_ids]
+            failure_type_pairs = [
+                (
+                    int(row.failure_type_id),
+                    int(row.asset_failure_type_id),
+                )
+                for row in failure_type_rows
+            ]
+
+            failure_type_ids = [
+                failure_type_id
+                for failure_type_id, _
+                in failure_type_pairs
+            ]
 
             if not failure_type_ids:
                 raise ValueError("No failure types are available for dummy prediction")
 
+            # Ez az összesített, eszközszintű predikció,
+            # ezért nincs egyetlen hibaoktípushoz rendelve.
             prediction = Prediction(job_id=job_id, asset_id=asset_id, asset_failure_type_id=None)
 
             session.add(prediction)
             session.flush()
 
             prediction_id = int(prediction.prediction_id)
+
+            failure_type_predictions = []
+
+            for _, asset_failure_type_id in failure_type_pairs:
+                # Minden hibaoktípus külön prediction rekordot
+                # kap, ehhez kapcsolódnak a típusszintű idősorok.
+                failure_type_prediction = Prediction(
+                    job_id=job_id,
+                    asset_id=asset_id,
+                    asset_failure_type_id=asset_failure_type_id,
+                )
+
+                session.add(failure_type_prediction)
+                failure_type_predictions.append(
+                    failure_type_prediction
+                )
+
+            session.flush()
 
             nowcast_time = pd.Timestamp(maintenance_end_time)
 
@@ -79,6 +115,10 @@ def predict(
 
             nowcast_reliability = 0.95
             final_reliability = 0.80
+            nowcast_failure_type_probability = (
+                (1.0 - nowcast_reliability)
+                / len(failure_type_ids)
+            )
 
             for index, forecast_time in enumerate(forecast_times, start=1):
                 progress = index / number_of_steps
@@ -90,6 +130,32 @@ def predict(
                 session.add(PredictionAssetLevel(prediction_id=prediction_id, forecast_time=(forecast_time.to_pydatetime()),
                                                  nowcast_reliability=(nowcast_reliability), forecast_reliability=(forecast_reliability),
                                                  nowcast_virtual_age=0.0, forecast_virtual_age=(float(elapsed_seconds)), nowcast_time=(nowcast_time.to_pydatetime())))
+
+                forecast_failure_type_probability = (
+                    (1.0 - forecast_reliability)
+                    / len(failure_type_ids)
+                )
+
+                for failure_type_prediction in failure_type_predictions:
+                    session.add(
+                        PredictionAssetFailureTypeLevel(
+                            prediction_id=int(
+                                failure_type_prediction.prediction_id
+                            ),
+                            forecast_time=(
+                                forecast_time.to_pydatetime()
+                            ),
+                            nowcast_failure_type_probability=(
+                                nowcast_failure_type_probability
+                            ),
+                            forecast_failure_type_probability=(
+                                forecast_failure_type_probability
+                            ),
+                            nowcast_time=(
+                                nowcast_time.to_pydatetime()
+                            ),
+                        )
+                    )
 
             total_failure_probability = (1.0 - final_reliability)
 

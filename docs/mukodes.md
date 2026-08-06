@@ -61,11 +61,24 @@ A fő lépések:
 2. A worker újra validálja az eltárolt payloadot.
 3. A CMMS-től lekéri az eszköz hibaokait.
 4. A helyi `assets.sf_asset_id` alapján feloldja a belső `asset_id` értéket; ha az eszköz még nem létezik, automatikusan létrehozza.
-5. Szinkronizálja a hibaokokat és a munkalap adatait.
-6. Meghívja a predikciós modult.
-7. Ellenőrzi, hogy a predikció eltárolta-e az eredményt.
+5. Szinkronizálja a hibaokokat és a munkalap adatait. A CMMS
+   `failure_causes[].operation_ids` elemei az `operations_done_lists` táblába
+   kerülnek; az `/asset_predict` műveletei nem kerülnek ebbe a táblába.
+6. Az `/asset_predict` műveleteiből hibaokonként JSON-listát készít, kizárólag
+   az adott CMMS-hibaokhoz tartozó műveletekkel, majd meghívja a predikciós
+   modult.
+7. A predikciós modul elmenti az eszközszintű és a hibaoktípus-szintű
+   idősorokat, majd a worker ellenőrzi az eszközszintű eredményt.
 8. Két eredményt küld a CMMS felé.
 9. A job `done`, `skipped`, `not_found` vagy `error` állapotba kerül.
+
+A predikció eredményét a worker bontja két CMMS-payloadra. Az
+`/dt/asset_prediction` az eszköz külső `asset_id` értékét és az összesített
+`predicted_reliability` értéket kapja. Az
+`/dt/asset_failure_cause_prediction` hibaoklistájához a worker az egyes
+`failure_type_id` értékeket a belső `asset_id` segítségével oldja fel
+`asset_failurecause_id` értékekre, és a hozzájuk tartozó valószínűséget
+`predicted_reliability` néven küldi.
 
 A CMMS a `default_occurrence_probability` értékét 0 és 99 közötti
 százalékos skálán adja át. A szinkronizálás ezt 100-zal osztja, és az

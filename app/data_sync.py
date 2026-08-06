@@ -186,6 +186,48 @@ def build_asset_failure_cause_operations(payload: dict) -> list[dict]:
     return result
 
 
+def build_prediction_failure_cause_operations(
+    asset_failure_cause_operations: list[dict],
+    completed_operation_ids: list[int],
+) -> list[dict]:
+    """
+    Az /asset_predict műveleteit a CMMS-ben
+    megadott hibaok-művelet kapcsolatok alapján
+    a predikció által várt JSON-struktúrába rendezi.
+    """
+
+    normalized_completed_operation_ids = [
+        normalize_positive_int(
+            operation_id,
+            "completed operation_id",
+        )
+        for operation_id in completed_operation_ids
+    ]
+
+    result: list[dict] = []
+
+    for failure_cause in asset_failure_cause_operations:
+        allowed_operation_ids = set(
+            failure_cause["operation_ids"]
+        )
+
+        result.append(
+            {
+                "asset_failurecause_id": int(
+                    failure_cause["asset_failurecause_id"]
+                ),
+                "operation_ids": [
+                    operation_id
+                    for operation_id
+                    in normalized_completed_operation_ids
+                    if operation_id in allowed_operation_ids
+                ],
+            }
+        )
+
+    return result
+
+
 def ensure_failure_type(
     session: Session,
     failure_cause: dict,
@@ -588,13 +630,13 @@ def store_asset_worksheet(
     return worksheet
 
 
-def store_completed_operations(
+def store_cmms_operations(
     session: Session,
     operation_ids: list[int],
     worksheet: AssetWorksheetList,
 ) -> None:
     """
-    Az /asset_predict operation_ids listájának
+    A CMMS failure_causes[].operation_ids
     minden elemét külön operations_done_lists
     rekordként menti.
 
@@ -609,7 +651,7 @@ def store_completed_operations(
     normalized_operation_ids = [
         normalize_positive_int(
             operation_id,
-            "completed operation_id",
+            "CMMS operation_id",
         )
         for operation_id in operation_ids
     ]
@@ -702,7 +744,8 @@ def synchronize_workorder(
     4. Szinkronizálja az összes CMMS-hibaokot.
     5. Meghatározza a munkalap hibaokkapcsolatát.
     6. Elmenti vagy megkeresi a munkalapot.
-    7. Elmenti a ténylegesen elvégzett műveleteket.
+    7. Elmenti a CMMS hibaokaihoz tartozó műveleteket,
+       és elkészíti a predikció műveleti JSON-ját.
 
     A függvény nem commitol. A commit a worker
     feladata.
@@ -761,10 +804,27 @@ def synchronize_workorder(
         ),
     )
 
-    store_completed_operations(
+    cmms_operation_ids = [
+        operation_id
+        for failure_cause
+        in asset_failure_cause_operations
+        for operation_id
+        in failure_cause["operation_ids"]
+    ]
+
+    store_cmms_operations(
         session=session,
-        operation_ids=workorder.operation_ids,
+        operation_ids=cmms_operation_ids,
         worksheet=worksheet,
+    )
+
+    prediction_failure_cause_operations = (
+        build_prediction_failure_cause_operations(
+            asset_failure_cause_operations=(
+                asset_failure_cause_operations
+            ),
+            completed_operation_ids=workorder.operation_ids,
+        )
     )
 
     return WorkorderSyncResult(
@@ -779,6 +839,6 @@ def synchronize_workorder(
             worksheet.maintenance_end_date
         ),
         asset_failure_cause_operations=(
-            asset_failure_cause_operations
+            prediction_failure_cause_operations
         ),
     )
