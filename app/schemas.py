@@ -39,7 +39,7 @@ class AssetPredictionPayload(BaseModel):
 
 class FailureCausePredictionItem(BaseModel):
     asset_failurecause_id: int = Field(gt=0)
-    predicted_occurrence_probability: float = Field(ge=0.0, le=0.99)
+    predicted_occurence_probability: float = Field(ge=0.0, le=0.99)
 
 
 class AssetFailureCausePredictionPayload(BaseModel):
