@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     CMMS_BASE_URL: str
     CMMS_TOKEN: str
 
+    DC_BASE_URL: str | None = None
+    DC_API_KEY: SecretStr | None = None
+    DATACOLLECTOR_CONFIG_PATH: str = "./app/config/datacollector.toml"
+    DATACOLLECTOR_REJECTED_LOG_PATH: str = "./logs/datacollector_rejected.log"
+
     INBOUND_API_KEY: SecretStr
 
     DATA_DIR: str = "./app/maintenance/prediction_out"  # helyi könyvtár is lehet

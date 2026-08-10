@@ -13,6 +13,7 @@ REQUIRED_TABLES = {
     "asset_failure_types",
     "asset_worksheet_lists",
     "assets",
+    "datacollector_sync_state",
     "etas_betas",
     "failure_types",
     "gammas",
@@ -30,6 +31,21 @@ REQUIRED_TABLES = {
     "sensors",
 }
 
+
+SCHEMA_UPDATES = (
+    "ALTER TABLE public.measurement_types ADD COLUMN IF NOT EXISTS unit_name TEXT",
+    "ALTER TABLE public.measurement_types ADD COLUMN IF NOT EXISTS unit_symbol TEXT",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_measurement_types_name_unit "
+    "ON public.measurement_types (measurement_type_name, unit_name, unit_symbol)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_sensor_types_name_measurement_type "
+    "ON public.sensor_types (type_name, measurement_type_id)",
+    "CREATE TABLE IF NOT EXISTS public.datacollector_sync_state ("
+    "sync_name CHARACTER VARYING(100) PRIMARY KEY, "
+    "last_successful_time_to TIMESTAMP WITHOUT TIME ZONE, "
+    "last_metrics_sync_at TIMESTAMP WITHOUT TIME ZONE"
+    ")",
+)
+
 REQUIRED_HYPERTABLES = {
     "asset_worksheet_lists",
     "measurements",
@@ -44,6 +60,10 @@ def main() -> None:
     log.info("Verifying database schema")
 
     with sync_engine.connect() as connection:
+        for statement in SCHEMA_UPDATES:
+            connection.execute(text(statement))
+        connection.commit()
+
         existing_tables = set(
             inspect(connection).get_table_names(schema="public")
         )

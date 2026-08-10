@@ -13,8 +13,8 @@ RUN python -m pip install --upgrade pip \
 
 RUN addgroup --system app \
     && adduser --system --ingroup app app \
-    && mkdir -p /data/predictions \
-    && chown -R app:app /data/predictions
+    && mkdir -p /data/predictions /data/datacollector \
+    && chown -R app:app /data/predictions /data/datacollector
 
 COPY --chown=app:app app ./app
 

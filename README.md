@@ -10,6 +10,8 @@ majd visszaküldi azt a CMMS felé.
 
 - `api`: FastAPI, amely ellenőrzi és sorba állítja a kéréseket;
 - `worker`: a `prediction_jobs` sor feldolgozója;
+- `datacollector`: a SilverFrog DC metaadatainak és méréseinek időzített
+  betöltője;
 - `db`: PostgreSQL 16 + TimescaleDB;
 - `db-init`: induláskor ellenőrzi az adatbázis tábláit, a TimescaleDB bővítményt, a
   `jobstatus` enumot és a hypertable-öket.
@@ -160,3 +162,18 @@ elsőbbséget élveznek.
 - `docs/operations.md` – üzemeltetési ellenőrzőlista és gyakori parancsok;
 - `docs/openapi.json` – API-leírás;
 - `docs/cmms_get_calls_system.json` – CMMS-hívásokhoz kapcsolódó referencia.
+
+## SilverFrog DC adatgyűjtés
+
+A `datacollector` Docker-szolgáltatás a DC `/ex/api/metrics` és
+`/ex/api/metric-values` GET végpontjairól tölti be a metaadatokat és a
+méréseket. A kapcsolathoz a `.env` fájlban a következő értékeket kell megadni:
+
+```env
+DC_BASE_URL=https://dc.dev2.sfrog.hu
+DC_API_KEY=replace-me
+```
+
+A lekérési időköz, az átfedés, a lapozás és a metrikák frissítési időköze az
+`app/config/datacollector.toml` fájlban állítható. Az elutasított adatok külön
+forgó naplóba kerülnek a `datacollector_logs` Docker volume-ban.

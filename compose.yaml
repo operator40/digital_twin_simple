@@ -6,9 +6,13 @@ x-app-environment: &app-environment
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
   CMMS_BASE_URL: ${CMMS_BASE_URL:-http://host.docker.internal:9000}
   CMMS_TOKEN: ${CMMS_TOKEN:-replace-me}
+  DC_BASE_URL: ${DC_BASE_URL:-https://dc.dev2.sfrog.hu}
+  DC_API_KEY: ${DC_API_KEY:-replace-me}
   INBOUND_API_KEY: ${INBOUND_API_KEY:-local-api-key}
   DATA_DIR: /data/predictions
   PREDICTION_CONFIG_PATH: /app/config/prediction.toml
+  DATACOLLECTOR_CONFIG_PATH: /app/config/datacollector.toml
+  DATACOLLECTOR_REJECTED_LOG_PATH: /data/datacollector/datacollector_rejected.log
 
 x-app-service: &app-service
   image: digital-twin-simple:local
@@ -80,6 +84,18 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  datacollector:
+    <<: *app-service
+    command: ["python", "-m", "app.datacollector.runner"]
+    volumes:
+      - ./app/config/datacollector.toml:/app/config/datacollector.toml:ro
+      - datacollector_logs:/data/datacollector
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   prediction_data:
+  datacollector_logs:
