@@ -2,7 +2,7 @@
 # A dummy database created inside the run_prediction function if session is None, so we don't need to initialize it here.
 
 import pandas as pd
-from prediction_module.main import run_prediction
+from prediction_module.core import run_prediction
 
 current_job = "job-5"  # check predictions.csv for the job_id, it should be unique for each prediction run
 target_asset = "asset-1"  # asset-1 or asset-2

@@ -15,7 +15,7 @@ from .job_queue import (_is_admin_shutdown_error, claim_one_job, job_heartbeat, 
 from .predict import predict
 from .prediction_config import prediction_config
 
-from prediction_module.main import run_prediction
+from prediction_module.core import run_prediction
 
 
 POLL_INTERVAL_SEC = 1.0
