@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     text
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -54,6 +55,46 @@ class Asset(Base):
     sf_asset_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)
 
 
+class MeasurementType(Base):
+    __tablename__ = "measurement_types"
+
+    measurement_type_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    measurement_type_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    unit: Mapped[str] = mapped_column(Text, nullable=False)
+    unit_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    unit_symbol: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "measurement_type_name",
+            "unit_name",
+            "unit_symbol",
+            name="ux_measurement_types_name_unit",
+        ),
+    )
+
+
+class SensorType(Base):
+    __tablename__ = "sensor_types"
+
+    type_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    type_name: Mapped[str] = mapped_column(Text, nullable=False)
+    max_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    min_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    measurement_type_id: Mapped[int] = mapped_column(
+        ForeignKey("measurement_types.measurement_type_id"), nullable=False
+    )
+    accuracy: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "type_name",
+            "measurement_type_id",
+            name="ux_sensor_types_name_measurement_type",
+        ),
+    )
+
+
 class FailureType(Base):
     __tablename__ = "failure_types"
 
@@ -81,9 +122,26 @@ class Sensor(Base):
     sensor_name: Mapped[str] = mapped_column(Text, nullable=False)
     measurement_frequency: Mapped[float | None] = mapped_column(Float, nullable=True)
     ranges_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    type_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    type_id: Mapped[int] = mapped_column(ForeignKey("sensor_types.type_id"), nullable=False)
     asset_id: Mapped[int] = mapped_column(ForeignKey("assets.asset_id"), nullable=False)
     metric_function_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class Measurement(Base):
+    __tablename__ = "measurements"
+
+    measurement_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    sensor_id: Mapped[int] = mapped_column(ForeignKey("sensors.sensor_id"), nullable=False)
+    time: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class DataCollectorSyncState(Base):
+    __tablename__ = "datacollector_sync_state"
+
+    sync_name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    last_successful_time_to: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_metrics_sync_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class EtaBeta(Base):

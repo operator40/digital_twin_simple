@@ -1,0 +1,9 @@
+[datacollector]
+poll_interval_minutes = 5
+overlap_minutes = 2
+metrics_refresh_interval_minutes = 4320
+page = 1
+page_size = 1000
+request_timeout_seconds = 30
+rejected_log_max_bytes = 10485760
+rejected_log_backup_count = 5
