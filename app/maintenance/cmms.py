@@ -1,12 +1,12 @@
 import httpx
 from loguru import logger
 
-from .settings import settings
+from ..settings import settings
 
 
 def _headers() -> dict[str, str]:
     return {
-        "x-api-key": settings.CMMS_TOKEN,
+        "x-api-key": settings.CMMS_TOKEN.get_secret_value(),
     }
 
 

@@ -116,6 +116,11 @@ A `.env` szerepel a `.gitignore` és `.dockerignore` fájlokban, ezért nem ker�
 Gitbe és az alkalmazás-image-be. Ettől még biztonsági mentésben vagy kézi
 megosztáskor ugyanúgy titokként kell kezelni.
 
+A komponensek verziókezelt működési paraméterei a gyökérszintű `config/`
+könyvtárban vannak: a `prediction.toml` a predikció, a `datacollector.toml` az
+adatgyűjtő beállításait tartalmazza. Környezeti érték vagy titok ne kerüljön
+ezekbe a TOML-fájlokba; azok helye a `.env`.
+
 ## 5. Az image felépítése
 
 ```powershell

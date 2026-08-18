@@ -8,8 +8,8 @@ from ..models import (
     JobStatus,
     PredictionJob,
 )
-from ..schemas import AssetPredictIn
-from ..utils import request_sha256
+from .schemas import AssetPredictIn
+from .utils import request_sha256
 
 
 RETRYABLE_STATUSES = {

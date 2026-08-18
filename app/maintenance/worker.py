@@ -7,9 +7,9 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from ..data_sync import (DataSyncNotFoundError, DataSyncValidationError, synchronize_workorder)
+from .data_sync import (DataSyncNotFoundError, DataSyncValidationError, synchronize_workorder)
 from ..models import (AssetFailureType, JobStatus, Prediction, PredictionJob)
-from ..schemas import (AssetFailureCausePredictionPayload, AssetPredictionPayload, AssetPredictIn, FailureCausePredictionItem)
+from .schemas import (AssetFailureCausePredictionPayload, AssetPredictionPayload, AssetPredictIn, FailureCausePredictionItem)
 from .cmms import (cmms_post_asset_failure_cause_prediction, cmms_post_asset_prediction)
 from .job_queue import (_is_admin_shutdown_error, claim_one_job, job_heartbeat, requeue_stuck_jobs, session_scope)
 from .predict import predict

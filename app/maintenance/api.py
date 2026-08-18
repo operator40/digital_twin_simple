@@ -13,8 +13,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import get_async_session
-from .maintenance.jobs import enqueue_prediction_job
+from ..db import get_async_session
+from .jobs import enqueue_prediction_job
 from .schemas import AssetPredictAccepted, AssetPredictIn
 from .security import require_api_key
 

@@ -16,11 +16,12 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: SecretStr | None = None
 
     CMMS_BASE_URL: str
-    CMMS_TOKEN: str
+    CMMS_TOKEN: SecretStr
 
     DC_BASE_URL: str | None = None
     DC_API_KEY: SecretStr | None = None
-    DATACOLLECTOR_CONFIG_PATH: str = "./app/config/datacollector.toml"
+    PREDICTION_CONFIG_PATH: str = "./config/prediction.toml"
+    DATACOLLECTOR_CONFIG_PATH: str = "./config/datacollector.toml"
     DATACOLLECTOR_REJECTED_LOG_PATH: str = "./logs/datacollector_rejected.log"
 
     INBOUND_API_KEY: SecretStr

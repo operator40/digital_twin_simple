@@ -1,12 +1,10 @@
-import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
 
-
-DEFAULT_CONFIG_PATH = Path("config/prediction.toml")
+from ..settings import settings
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +16,7 @@ class PredictionConfig:
 def load_prediction_config(config_path: str | Path | None = None) -> PredictionConfig:
 
     if config_path is None:
-        config_path = os.getenv("PREDICTION_CONFIG_PATH", str(DEFAULT_CONFIG_PATH))
+        config_path = settings.PREDICTION_CONFIG_PATH
 
     path = Path(config_path)
 

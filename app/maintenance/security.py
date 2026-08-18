@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
-from .maintenance.settings import settings
+from ..settings import settings
 
 
 api_key_header = APIKeyHeader(

@@ -7,8 +7,8 @@ from collections import Counter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .maintenance.cmms import (cmms_get_asset_failure_causes)
-from .models import (Asset, AssetFailureType, AssetWorksheetList, FailureType, OperationsDoneList)
+from .cmms import (cmms_get_asset_failure_causes)
+from ..models import (Asset, AssetFailureType, AssetWorksheetList, FailureType, OperationsDoneList)
 from .schemas import AssetPredictIn
 
 

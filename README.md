@@ -139,7 +139,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.maintenance.api:app --host 0.0.0.0 --port 8000
 ```
 
 A worker külön terminálban indítható:
@@ -174,6 +174,7 @@ DC_BASE_URL=https://dc.dev2.sfrog.hu
 DC_API_KEY=replace-me
 ```
 
-A lekérési időköz, az átfedés, a lapozás és a metrikák frissítési időköze az
-`app/config/datacollector.toml` fájlban állítható. Az elutasított adatok külön
+A lekérési időköz, az átfedés, a lapozás és a metrikák frissítési időköze a
+`config/datacollector.toml` fájlban állítható. A predikció időablakai a
+`config/prediction.toml` fájlban találhatók. Az elutasított adatok külön
 forgó naplóba kerülnek a `datacollector_logs` Docker volume-ban.

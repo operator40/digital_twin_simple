@@ -7,7 +7,7 @@ from app.datacollector.logging import configure_rejected_logger
 from app.datacollector.repository import DataCollectorRepository
 from app.datacollector.service import DataCollectorService
 from app.db import SyncSessionLocal
-from app.maintenance.settings import settings
+from app.settings import settings
 
 
 logging.basicConfig(

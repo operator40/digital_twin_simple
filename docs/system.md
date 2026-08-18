@@ -88,8 +88,11 @@ szükséges.
 | `.env.example` | konfigurációs sablon titkok nélkül |
 | `db/init/001_schema.sql` | induló TimescaleDB-séma |
 | `app/init_db.py` | sémaellenőrzés |
-| `app/main.py` | FastAPI végpont |
+| `app/settings.py` | közös környezeti konfiguráció |
+| `app/maintenance/api.py` | FastAPI végpont |
 | `app/maintenance/jobs.py` | idempotens sorba állítás |
 | `app/maintenance/job_queue.py` | foglalás, heartbeat és újra sorba állítás |
 | `app/maintenance/worker.py` | feldolgozó folyamat |
-| `app/data_sync.py` | CMMS- és munkalapadatok szinkronizálása |
+| `app/maintenance/data_sync.py` | CMMS- és munkalapadatok szinkronizálása |
+| `config/prediction.toml` | verziókezelt predikciós működési paraméterek |
+| `config/datacollector.toml` | verziókezelt adatgyűjtési működési paraméterek |

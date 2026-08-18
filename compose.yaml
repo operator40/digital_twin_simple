@@ -53,7 +53,7 @@ services:
 
   api:
     <<: *app-service
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "app.maintenance.api:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -88,7 +88,7 @@ services:
     <<: *app-service
     command: ["python", "-m", "app.datacollector.runner"]
     volumes:
-      - ./app/config/datacollector.toml:/app/config/datacollector.toml:ro
+      - ./config/datacollector.toml:/app/config/datacollector.toml:ro
       - datacollector_logs:/data/datacollector
     depends_on:
       db-init:
