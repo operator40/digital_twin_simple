@@ -26,8 +26,8 @@ def load_config(path: str) -> DataCollectorConfig:
         raise ValueError("overlap_minutes cannot be negative")
     if config.metrics_refresh_interval_minutes <= 0:
         raise ValueError("metrics_refresh_interval_minutes must be greater than zero")
-    if config.page < 1:
-        raise ValueError("page must be at least 1")
+    if config.page < 0:
+        raise ValueError("page cannot be negative")
     if config.page_size <= 0:
         raise ValueError("page_size must be greater than zero")
     if config.request_timeout_seconds <= 0:

@@ -187,6 +187,9 @@ A lekérési időköz, az átfedés, a lapozás és a metrikák frissítési id�
 `config/datacollector.toml` fájlban állítható. A predikció időablakai a
 `config/prediction.toml` fájlban találhatók. Az elutasított adatok külön
 forgó naplóba kerülnek a `datacollector_logs` Docker volume-ban.
+Az `/ex/api/metric-values` lapozása nulláról indul; a datacollector a válasz
+`content` listáját dolgozza fel, és a `page.number`/`page.totalPages` mezők
+alapján kéri le a további oldalakat.
 
 ## CMMS–DC asset mapping
 

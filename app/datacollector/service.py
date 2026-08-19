@@ -59,7 +59,7 @@ class DataCollectorService:
         for dc_asset_id, metric_function_id in self.repository.list_metric_pairs():
             page = self.config.page
             while True:
-                values = self.client.get_metric_values(
+                result_page = self.client.get_metric_values(
                     technical_object_id=dc_asset_id,
                     metric_function_id=metric_function_id,
                     time_from=time_from,
@@ -67,7 +67,13 @@ class DataCollectorService:
                     page=page,
                     size=self.config.page_size,
                 )
-                for item in values:
+                if result_page.number != page:
+                    raise ValueError(
+                        "DC /metric-values returned page "
+                        f"{result_page.number} when page {page} was requested"
+                    )
+
+                for item in result_page.content:
                     refreshed = self._store_metric_value(
                         item,
                         allow_metadata_refresh=not missing_metadata_refreshed,
@@ -78,9 +84,9 @@ class DataCollectorService:
                     )
                 self.repository.commit()
 
-                if len(values) < self.config.page_size:
+                if result_page.number + 1 >= result_page.total_pages:
                     break
-                page += 1
+                page = result_page.number + 1
 
         state.last_successful_time_to = time_to
         self.repository.save_state(state)

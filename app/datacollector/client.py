@@ -1,7 +1,56 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 import httpx
+
+
+@dataclass(frozen=True)
+class MetricValuesPage:
+    content: list[dict[str, Any]]
+    number: int
+    total_pages: int
+
+
+def parse_metric_values_page(payload: Any) -> MetricValuesPage:
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "DC /metric-values response must be a paginated JSON object"
+        )
+
+    content = payload.get("content")
+    page = payload.get("page")
+    if not isinstance(content, list) or not all(
+        isinstance(item, dict) for item in content
+    ):
+        raise ValueError("DC /metric-values content must be a JSON array")
+    if not isinstance(page, dict):
+        raise ValueError("DC /metric-values response is missing page metadata")
+
+    number = page.get("number")
+    total_pages = page.get("totalPages")
+    if (
+        not isinstance(number, int)
+        or isinstance(number, bool)
+        or number < 0
+    ):
+        raise ValueError("DC /metric-values page.number must be non-negative")
+    if (
+        not isinstance(total_pages, int)
+        or isinstance(total_pages, bool)
+        or total_pages < 0
+    ):
+        raise ValueError(
+            "DC /metric-values page.totalPages must be non-negative"
+        )
+    if total_pages > 0 and number >= total_pages:
+        raise ValueError("DC /metric-values page metadata is inconsistent")
+
+    return MetricValuesPage(
+        content=content,
+        number=number,
+        total_pages=total_pages,
+    )
 
 
 class DataCollectorClient:
@@ -31,7 +80,7 @@ class DataCollectorClient:
         time_to: datetime,
         page: int,
         size: int,
-    ) -> list[dict[str, Any]]:
+    ) -> MetricValuesPage:
         response = self._client.get(
             "/ex/api/metric-values",
             params={
@@ -45,7 +94,4 @@ class DataCollectorClient:
             },
         )
         response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, list):
-            raise ValueError("DC /metric-values response must be a JSON array")
-        return payload
+        return parse_metric_values_page(response.json())
