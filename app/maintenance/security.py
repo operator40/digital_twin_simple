@@ -37,3 +37,31 @@ def require_api_key(
             detail="API key is invalid",
             headers={"WWW-Authenticate": "ApiKey"},
         )
+
+
+def require_mapping_admin_api_key(
+    provided_api_key: Annotated[str | None, Security(api_key_header)],
+) -> None:
+    """Protect runtime asset-mapping administration endpoints."""
+
+    if settings.MAPPING_ADMIN_API_KEY is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The asset-mapping administration API is not configured",
+        )
+
+    expected_api_key = settings.MAPPING_ADMIN_API_KEY.get_secret_value()
+
+    if provided_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key is missing",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    if not compare_digest(provided_api_key, expected_api_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key is invalid",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )

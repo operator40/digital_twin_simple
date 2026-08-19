@@ -42,11 +42,11 @@ def _json_or_status(
 
 
 async def cmms_get_asset_failure_causes(
-    sf_asset_id: int,
+    cmms_asset_id: int,
 ) -> dict:
     url = (
         f"{settings.CMMS_BASE_URL}"
-        f"/dt-api/asset_failure_causes/{sf_asset_id}"
+        f"/dt-api/asset_failure_causes/{cmms_asset_id}"
     )
 
     try:
@@ -94,11 +94,11 @@ async def cmms_get_asset_failure_causes(
 
         if (
             response_asset_id is not None
-            and int(response_asset_id) != int(sf_asset_id)
+            and int(response_asset_id) != int(cmms_asset_id)
         ):
             raise ValueError(
                 "The asset_id returned by the CMMS "
-                "does not match the requested sf_asset_id"
+                "does not match the requested cmms_asset_id"
             )
 
         return payload
@@ -106,8 +106,8 @@ async def cmms_get_asset_failure_causes(
     except (httpx.HTTPError, ValueError) as error:
         logger.error(
             "Error fetching asset_failure_causes "
-            "for sf_asset_id {}: {}",
-            sf_asset_id,
+            "for cmms_asset_id {}: {}",
+            cmms_asset_id,
             error,
         )
         raise

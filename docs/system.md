@@ -70,6 +70,7 @@ függőség már szerepel a projektben, de a migrációs környezet még nincs k
 ## Biztonsági határok
 
 - A bejövő API-t az `INBOUND_API_KEY` védi.
+- A futás közbeni asset-mapping végpontot a külön `MAPPING_ADMIN_API_KEY` védi.
 - A CMMS-kimenő hívások a külön `CMMS_TOKEN` kulcsot használják.
 - A `.env` fájl nincs Gitben és nem kerül be az image-be.
 - Az alkalmazás-image nem root Linux-felhasználóként fut.
@@ -90,6 +91,7 @@ szükséges.
 | `app/init_db.py` | sémaellenőrzés |
 | `app/settings.py` | közös környezeti konfiguráció |
 | `app/maintenance/api.py` | FastAPI végpont |
+| `app/maintenance/asset_mapping.py` | futás közbeni CMMS–DC mappingek kezelése |
 | `app/maintenance/jobs.py` | idempotens sorba állítás |
 | `app/maintenance/job_queue.py` | foglalás, heartbeat és újra sorba állítás |
 | `app/maintenance/worker.py` | feldolgozó folyamat |

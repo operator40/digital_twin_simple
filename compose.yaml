@@ -9,6 +9,7 @@ x-app-environment: &app-environment
   DC_BASE_URL: ${DC_BASE_URL:-https://dc.dev2.sfrog.hu}
   DC_API_KEY: ${DC_API_KEY:-replace-me}
   INBOUND_API_KEY: ${INBOUND_API_KEY:-local-api-key}
+  MAPPING_ADMIN_API_KEY: ${MAPPING_ADMIN_API_KEY:-local-mapping-admin-key}
   DATA_DIR: /data/predictions
   PREDICTION_CONFIG_PATH: /app/config/prediction.toml
   DATACOLLECTOR_CONFIG_PATH: /app/config/datacollector.toml

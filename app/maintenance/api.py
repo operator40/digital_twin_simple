@@ -14,9 +14,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_async_session
+from .asset_mapping import apply_asset_mappings
 from .jobs import enqueue_prediction_job
-from .schemas import AssetPredictAccepted, AssetPredictIn
-from .security import require_api_key
+from .schemas import (
+    AssetMappingBatchIn,
+    AssetMappingBatchResult,
+    AssetPredictAccepted,
+    AssetPredictIn,
+)
+from .security import require_api_key, require_mapping_admin_api_key
 
 
 log = logging.getLogger("api")
@@ -91,9 +97,9 @@ async def asset_predict(
 
         log.exception(
             "Could not enqueue prediction job: "
-            "workorder_id=%s, sf_asset_id=%s",
+            "workorder_id=%s, cmms_asset_id=%s",
             body.workorder_id,
-            body.sf_asset_id,
+            body.cmms_asset_id,
         )
 
         raise HTTPException(
@@ -103,10 +109,10 @@ async def asset_predict(
 
     log.info(
         "Asset predict message accepted: "
-        "job_id=%s, workorder_id=%s, sf_asset_id=%s, prediction_queued=%s",
+        "job_id=%s, workorder_id=%s, cmms_asset_id=%s, prediction_queued=%s",
         job_id,
         body.workorder_id,
-        body.sf_asset_id,
+        body.cmms_asset_id,
         bool(
             body.operation_ids
             and (
@@ -117,3 +123,42 @@ async def asset_predict(
     )
 
     return AssetPredictAccepted(job_id=job_id)
+
+
+@app.post(
+    "/sf_asset_mapping",
+    response_model=AssetMappingBatchResult,
+    dependencies=[Depends(require_mapping_admin_api_key)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "The mapping administration API key is invalid",
+        },
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "description": "The mapping could not be stored",
+        },
+    },
+)
+async def sf_asset_mapping(
+    body: AssetMappingBatchIn,
+    session: AsyncSession = Depends(get_async_session),
+) -> AssetMappingBatchResult:
+    """Create or complete CMMS-to-DC asset mappings at runtime."""
+
+    try:
+        result = await apply_asset_mappings(session=session, batch=body)
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        log.exception("Could not apply asset mappings")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The asset mappings could not be stored",
+        ) from exc
+
+    log.info(
+        "Asset mappings processed: created=%s updated=%s unchanged=%s conflicts=%s",
+        result.created,
+        result.updated,
+        result.unchanged,
+        result.conflicts,
+    )
+    return result

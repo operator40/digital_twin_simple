@@ -101,6 +101,7 @@ Ezután szerkeszd a `.env` fájlt. Legalább ezeket cseréld le:
 
 - `POSTGRES_PASSWORD`;
 - `INBOUND_API_KEY`;
+- `MAPPING_ADMIN_API_KEY`;
 - `CMMS_BASE_URL`;
 - `CMMS_TOKEN`.
 

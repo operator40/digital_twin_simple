@@ -20,7 +20,7 @@ A kérés mezői:
 | Mező | Típus | Szabály |
 | --- | --- | --- |
 | `workorder_id` | pozitív egész | kötelező |
-| `asset_id` | pozitív egész | a kódban `sf_asset_id` néven kezelt külső CMMS-azonosító |
+| `asset_id` | pozitív egész | a kódban `cmms_asset_id` néven kezelt külső CMMS-azonosító |
 | `failure_cause_id` | pozitív egész vagy `null` | nem preventív munkalapnál kötelező |
 | `failure_date` | ISO 8601 dátum-idő | ha későbbi az `ended` értékénél, az üzenet mentésre kerül, de nincs predikció |
 | `ended` | ISO 8601 dátum-idő | kötelező |
@@ -60,7 +60,7 @@ A fő lépések:
 1. A job `processing` állapotba kerül.
 2. A worker újra validálja az eltárolt payloadot.
 3. A CMMS-től lekéri az eszköz hibaokait.
-4. A helyi `assets.sf_asset_id` alapján feloldja a belső `asset_id` értéket; ha az eszköz még nem létezik, automatikusan létrehozza.
+4. A helyi `assets.cmms_asset_id` alapján feloldja a belső `asset_id` értéket; ha az eszköz még nem létezik, automatikusan létrehozza.
 5. Szinkronizálja a hibaokokat és a munkalap adatait. A CMMS
    `failure_causes[].operation_ids` elemei az `operations_done_lists` táblába
    kerülnek; az `/asset_predict` műveletei nem kerülnek ebbe a táblába.

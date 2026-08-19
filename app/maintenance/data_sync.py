@@ -97,7 +97,7 @@ def get_failure_causes(payload: dict) -> list[dict]:
     return normalized_failure_causes
 
 
-def ensure_asset_id(session: Session, sf_asset_id: int) -> int:
+def ensure_asset_id(session: Session, cmms_asset_id: int) -> int:
     """
     A CMMS-től érkező külső asset_id alapján
     visszaadja a saját rendszer belső asset_id
@@ -108,14 +108,14 @@ def ensure_asset_id(session: Session, sf_asset_id: int) -> int:
     ezért új rekordnál az asset_name NULL marad.
     """
 
-    normalized_sf_asset_id = normalize_positive_int(
-        sf_asset_id,
-        "sf_asset_id",
+    normalized_cmms_asset_id = normalize_positive_int(
+        cmms_asset_id,
+        "cmms_asset_id",
     )
 
     asset_id = session.execute(
         select(Asset.asset_id).where(
-            Asset.sf_asset_id == normalized_sf_asset_id
+            Asset.cmms_asset_id == normalized_cmms_asset_id
         )
     ).scalar_one_or_none()
 
@@ -123,7 +123,7 @@ def ensure_asset_id(session: Session, sf_asset_id: int) -> int:
         return int(asset_id)
 
     asset = Asset(
-        sf_asset_id=normalized_sf_asset_id,
+        cmms_asset_id=normalized_cmms_asset_id,
         asset_name=None,
     )
 
@@ -754,7 +754,7 @@ def synchronize_workorder(
     try:
         cmms_payload = asyncio.run(
             cmms_get_asset_failure_causes(
-                workorder.sf_asset_id
+                workorder.cmms_asset_id
             )
         )
 
@@ -762,7 +762,7 @@ def synchronize_workorder(
         if error.response.status_code == 404:
             raise DataSyncNotFoundError(
                 "The CMMS returned no asset failure causes "
-                f"for sf_asset_id={workorder.sf_asset_id}"
+                f"for cmms_asset_id={workorder.cmms_asset_id}"
             ) from error
 
         raise
@@ -775,7 +775,7 @@ def synchronize_workorder(
 
     asset_id = ensure_asset_id(
         session=session,
-        sf_asset_id=workorder.sf_asset_id,
+        cmms_asset_id=workorder.cmms_asset_id,
     )
 
     failure_type_mapping = (

@@ -316,7 +316,7 @@ def process_job(session: Session, job: PredictionJob) -> None:
         return
 
     try:
-        asset_prediction_payload = (AssetPredictionPayload(prediction_id=prediction_id, sf_asset_id=(workorder.sf_asset_id), predicted_reliability=(predicted_reliability)))
+        asset_prediction_payload = (AssetPredictionPayload(prediction_id=prediction_id, cmms_asset_id=(workorder.cmms_asset_id), predicted_reliability=(predicted_reliability)))
 
         failure_cause_payload = (AssetFailureCausePredictionPayload(prediction_id=prediction_id,
                                                                     failure_causes=(build_failure_cause_items(asset_failurecause_ids=(asset_failurecause_ids),

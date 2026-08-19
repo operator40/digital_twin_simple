@@ -35,7 +35,7 @@ Copy-Item .env.example .env
 ```
 
 Nyissa meg a létrejött `.env` fájlt, és cserélje le a
-`POSTGRES_PASSWORD` és `INBOUND_API_KEY` értékét.
+`POSTGRES_PASSWORD`, `INBOUND_API_KEY` és `MAPPING_ADMIN_API_KEY` értékét.
 
 A teljes rendszer indítása:
 
@@ -65,17 +65,26 @@ a `db` állapota `healthy`, a `db-init` állapota pedig `Exited (0)` legyen. A
 
 ## API használata
 
-Jelenleg egy végpont érhető el:
+Az üzleti predikciós végpont:
 
 ```text
 POST /asset_predict
 ```
 
-A kéréshez kötelező az alábbi fejléc:
+A futás közbeni CMMS–DC mapping adminisztrációs végpontja:
+
+```text
+POST /sf_asset_mapping
+```
+
+Az `/asset_predict` kéréshez kötelező az alábbi fejléc:
 
 ```text
 X-API-Key: <az INBOUND_API_KEY értéke>
 ```
+
+A `/sf_asset_mapping` végpont ugyanezt a fejlécnevet használja, de a külön
+`MAPPING_ADMIN_API_KEY` értékével.
 
 Példakérés PowerShellből:
 
@@ -178,3 +187,11 @@ A lekérési időköz, az átfedés, a lapozás és a metrikák frissítési id�
 `config/datacollector.toml` fájlban állítható. A predikció időablakai a
 `config/prediction.toml` fájlban találhatók. Az elutasított adatok külön
 forgó naplóba kerülnek a `datacollector_logs` Docker volume-ban.
+
+## CMMS–DC asset mapping
+
+A CMMS `asset_id` és a DC `technicalObjectUniqueIdentifier` kapcsolatát a futó
+API `POST /sf_asset_mapping` végpontján lehet betölteni. A végpontot a külön
+`MAPPING_ADMIN_API_KEY` védi. JSON-fájl importálásához használható a
+`scripts/import_asset_mappings.py` segédprogram. A részletes formátum és a
+konfliktuskezelés a `docs/asset_mapping.md` dokumentumban található.

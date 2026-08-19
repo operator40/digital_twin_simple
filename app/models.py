@@ -52,7 +52,8 @@ class Asset(Base):
 
     asset_id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     asset_name: Mapped[str | None] = mapped_column(Text, nullable=True)
-    sf_asset_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)
+    cmms_asset_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)
+    dc_asset_id: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
 
 
 class MeasurementType(Base):
@@ -124,7 +125,7 @@ class Sensor(Base):
     ranges_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     type_id: Mapped[int] = mapped_column(ForeignKey("sensor_types.type_id"), nullable=False)
     asset_id: Mapped[int] = mapped_column(ForeignKey("assets.asset_id"), nullable=False)
-    metric_function_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    metric_function_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class Measurement(Base):

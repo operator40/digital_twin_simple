@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 import json
 import logging
 import math
-import re
 from typing import Any
 
 from app.datacollector.client import DataCollectorClient
@@ -11,7 +10,6 @@ from app.datacollector.repository import DataCollectorRepository
 
 
 logger = logging.getLogger(__name__)
-INTEGER_PATTERN = re.compile(r"^[+-]?\d+$")
 
 
 class DataCollectorService:
@@ -58,11 +56,11 @@ class DataCollectorService:
         time_to = now
         missing_metadata_refreshed = False
 
-        for technical_object_id, metric_function_id in self.repository.list_metric_pairs():
+        for dc_asset_id, metric_function_id in self.repository.list_metric_pairs():
             page = self.config.page
             while True:
                 values = self.client.get_metric_values(
-                    technical_object_id=technical_object_id,
+                    technical_object_id=dc_asset_id,
                     metric_function_id=metric_function_id,
                     time_from=time_from,
                     time_to=time_to,
@@ -98,7 +96,13 @@ class DataCollectorService:
         for item in metrics:
             try:
                 parsed = self._parse_metric(item)
-                self.repository.store_metric(**parsed)
+                sensor = self.repository.store_metric(**parsed)
+                if sensor is None:
+                    logger.warning(
+                        "Skipping unmapped DC technical object: dc_asset_id=%s",
+                        parsed["dc_asset_id"],
+                    )
+                    continue
                 stored += 1
             except (KeyError, TypeError, ValueError) as exc:
                 self._reject("invalid metric metadata", item, error=str(exc))
@@ -115,11 +119,11 @@ class DataCollectorService:
             return False
 
         try:
-            technical_object_id = parse_identifier(
+            dc_asset_id = parse_external_identifier(
                 item["technicalObjectUniqueIdentifier"],
                 "technicalObjectUniqueIdentifier",
             )
-            metric_function_id = parse_identifier(
+            metric_function_id = parse_external_identifier(
                 item["metricFunctionUniqueIdentifier"],
                 "metricFunctionUniqueIdentifier",
             )
@@ -132,19 +136,19 @@ class DataCollectorService:
                 error=str(exc),
                 value=item.get("value"),
                 createdAt=item.get("createdAt"),
-                sf_asset_id=item.get("technicalObjectUniqueIdentifier"),
+                dc_asset_id=item.get("technicalObjectUniqueIdentifier"),
                 metric_function_id=item.get("metricFunctionUniqueIdentifier"),
             )
             return False
 
         sensor = self.repository.find_latest_sensor(
-            technical_object_id, metric_function_id
+            dc_asset_id, metric_function_id
         )
         metadata_refreshed = False
         if sensor is None and allow_metadata_refresh:
             logger.warning(
-                "Unknown DC metric; refreshing metadata: sf_asset_id=%s, metric_function_id=%s",
-                technical_object_id,
+                "Unknown DC metric; refreshing metadata: dc_asset_id=%s, metric_function_id=%s",
+                dc_asset_id,
                 metric_function_id,
             )
             self.refresh_metrics()
@@ -154,7 +158,7 @@ class DataCollectorService:
                 state.last_metrics_sync_at = refresh_time
                 self.repository.save_state(state)
             sensor = self.repository.find_latest_sensor(
-                technical_object_id, metric_function_id
+                dc_asset_id, metric_function_id
             )
 
         if sensor is None:
@@ -163,13 +167,13 @@ class DataCollectorService:
                 item,
                 value=item.get("value"),
                 createdAt=created_at.isoformat(),
-                sf_asset_id=technical_object_id,
+                dc_asset_id=dc_asset_id,
                 metric_function_id=metric_function_id,
             )
             return metadata_refreshed
 
         if self.repository.measurement_exists(
-            technical_object_id, metric_function_id, created_at
+            dc_asset_id, metric_function_id, created_at
         ):
             return metadata_refreshed
 
@@ -178,14 +182,14 @@ class DataCollectorService:
 
     def _parse_metric(self, item: dict[str, Any]) -> dict[str, Any]:
         result = {
-            "technical_object_id": parse_identifier(
+            "dc_asset_id": parse_external_identifier(
                 item["technicalObjectUniqueIdentifier"],
                 "technicalObjectUniqueIdentifier",
             ),
             "technical_object_name": required_text(
                 item["technicalObjectName"], "technicalObjectName"
             ),
-            "metric_function_id": parse_identifier(
+            "metric_function_id": parse_external_identifier(
                 item["metricFunctionUniqueIdentifier"],
                 "metricFunctionUniqueIdentifier",
             ),
@@ -226,19 +230,14 @@ class DataCollectorService:
         )
 
 
-def parse_identifier(value: Any, field_name: str) -> int:
-    if isinstance(value, bool):
-        raise ValueError(f"{field_name} must be numeric")
-    if isinstance(value, int):
-        return value
-    if isinstance(value, float):
-        if math.isfinite(value) and value.is_integer():
-            return int(value)
-        raise ValueError(f"{field_name} must be an integer: {value!r}")
-    text = str(value).strip()
-    if not INTEGER_PATTERN.fullmatch(text):
-        raise ValueError(f"{field_name} must be numeric: {value!r}")
-    return int(text)
+def parse_external_identifier(value: Any, field_name: str) -> str:
+    if value is None:
+        raise ValueError(f"{field_name} is missing")
+
+    identifier = str(value).strip()
+    if not identifier:
+        raise ValueError(f"{field_name} cannot be empty")
+    return identifier
 
 
 def required_text(value: Any, field_name: str) -> str:

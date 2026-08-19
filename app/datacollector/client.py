@@ -25,8 +25,8 @@ class DataCollectorClient:
 
     def get_metric_values(
         self,
-        technical_object_id: int,
-        metric_function_id: int,
+        technical_object_id: str,
+        metric_function_id: str,
         time_from: datetime,
         time_to: datetime,
         page: int,
@@ -35,8 +35,8 @@ class DataCollectorClient:
         response = self._client.get(
             "/ex/api/metric-values",
             params={
-                "technicalObjectUniqueIdentifier": str(technical_object_id),
-                "metricFunctionUniqueIdentifier": str(metric_function_id),
+                "technicalObjectUniqueIdentifier": technical_object_id,
+                "metricFunctionUniqueIdentifier": metric_function_id,
                 "timeFrom": time_from.isoformat(),
                 "timeTo": time_to.isoformat(),
                 "isValid": "true",

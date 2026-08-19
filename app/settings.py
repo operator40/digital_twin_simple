@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     DATACOLLECTOR_REJECTED_LOG_PATH: str = "./logs/datacollector_rejected.log"
 
     INBOUND_API_KEY: SecretStr
+    MAPPING_ADMIN_API_KEY: SecretStr | None = None
 
     DATA_DIR: str = "./app/maintenance/prediction_out"  # helyi könyvtár is lehet
 

@@ -33,6 +33,33 @@ REQUIRED_TABLES = {
 
 
 SCHEMA_UPDATES = (
+    "DO $$ BEGIN "
+    "IF EXISTS ("
+    "SELECT 1 FROM information_schema.columns "
+    "WHERE table_schema = 'public' AND table_name = 'assets' "
+    "AND column_name = 'sf_asset_id'"
+    ") AND NOT EXISTS ("
+    "SELECT 1 FROM information_schema.columns "
+    "WHERE table_schema = 'public' AND table_name = 'assets' "
+    "AND column_name = 'cmms_asset_id'"
+    ") THEN "
+    "ALTER TABLE public.assets RENAME COLUMN sf_asset_id TO cmms_asset_id; "
+    "END IF; END $$",
+    "ALTER TABLE public.assets ADD COLUMN IF NOT EXISTS cmms_asset_id BIGINT",
+    "ALTER TABLE public.assets ADD COLUMN IF NOT EXISTS dc_asset_id TEXT",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_cmms_asset_id "
+    "ON public.assets (cmms_asset_id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_assets_dc_asset_id "
+    "ON public.assets (dc_asset_id)",
+    "DO $$ BEGIN "
+    "IF EXISTS ("
+    "SELECT 1 FROM information_schema.columns "
+    "WHERE table_schema = 'public' AND table_name = 'sensors' "
+    "AND column_name = 'metric_function_id' AND data_type <> 'text'"
+    ") THEN "
+    "ALTER TABLE public.sensors ALTER COLUMN metric_function_id TYPE TEXT "
+    "USING metric_function_id::text; "
+    "END IF; END $$",
     "ALTER TABLE public.measurement_types ADD COLUMN IF NOT EXISTS unit_name TEXT",
     "ALTER TABLE public.measurement_types ADD COLUMN IF NOT EXISTS unit_symbol TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS ux_measurement_types_name_unit "

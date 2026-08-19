@@ -101,6 +101,49 @@
           }
         }
       }
+    },
+    "/sf_asset_mapping": {
+      "post": {
+        "summary": "CMMS–DC asset mappingek betöltése",
+        "description": "Futás közben idempotensen létrehozza vagy kiegészíti a CMMS- és DC-eszközazonosítók kapcsolatát.",
+        "operationId": "sf_asset_mapping_sf_asset_mapping_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetMappingBatchIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A mappingek feldolgozva",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetMappingBatchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Érvénytelen mapping kérés"
+          },
+          "401": {
+            "description": "Hiányzó vagy érvénytelen mapping admin API-kulcs"
+          },
+          "503": {
+            "description": "A mappingek nem voltak eltárolhatók"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -125,6 +168,89 @@
           }
         }
       },
+      "AssetMappingBatchIn": {
+        "type": "object",
+        "title": "AssetMappingBatchIn",
+        "required": [
+          "mappings"
+        ],
+        "properties": {
+          "mappings": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/AssetMappingIn"
+            }
+          }
+        }
+      },
+      "AssetMappingIn": {
+        "type": "object",
+        "title": "AssetMappingIn",
+        "description": "At least one of cmms_asset_id or dc_asset_id is required.",
+        "properties": {
+          "cmms_asset_id": {
+            "anyOf": [
+              { "type": "integer", "exclusiveMinimum": 0 },
+              { "type": "null" }
+            ]
+          },
+          "dc_asset_id": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "AssetMappingBatchResult": {
+        "type": "object",
+        "title": "AssetMappingBatchResult",
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "conflicts",
+          "results"
+        ],
+        "properties": {
+          "created": { "type": "integer" },
+          "updated": { "type": "integer" },
+          "unchanged": { "type": "integer" },
+          "conflicts": { "type": "integer" },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetMappingItemResult"
+            }
+          }
+        }
+      },
+      "AssetMappingItemResult": {
+        "type": "object",
+        "title": "AssetMappingItemResult",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "cmms_asset_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }]
+          },
+          "dc_asset_id": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["created", "updated", "unchanged", "conflict"]
+          },
+          "asset_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }]
+          },
+          "reason": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }]
+          }
+        }
+      },
       "AssetPredictIn": {
         "type": "object",
         "title": "AssetPredictIn",
@@ -146,7 +272,7 @@
             "type": "integer",
             "exclusiveMinimum": 0,
             "title": "Asset Id",
-            "description": "Külső CMMS-eszközazonosító; a Python-kódban sf_asset_id."
+            "description": "Külső CMMS-eszközazonosító; a Python-kódban cmms_asset_id."
           },
           "failure_cause_id": {
             "anyOf": [

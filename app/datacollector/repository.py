@@ -39,25 +39,21 @@ class DataCollectorRepository:
 
     def store_metric(
         self,
-        technical_object_id: int,
+        dc_asset_id: str,
         technical_object_name: str,
-        metric_function_id: int,
+        metric_function_id: str,
         metric_function_name: str,
         unit_name: str,
         unit_symbol: str,
         data_type: str,
-    ) -> Sensor:
+    ) -> Sensor | None:
         asset = self.session.scalar(
-            select(Asset).where(Asset.sf_asset_id == technical_object_id)
+            select(Asset).where(Asset.dc_asset_id == dc_asset_id)
         )
         if asset is None:
-            asset = Asset(
-                sf_asset_id=technical_object_id,
-                asset_name=technical_object_name,
-            )
-            self.session.add(asset)
-            self.session.flush()
-        elif asset.asset_name != technical_object_name:
+            return None
+
+        if asset.asset_name != technical_object_name:
             asset.asset_name = technical_object_name
 
         measurement_type = self.session.scalar(
@@ -117,27 +113,27 @@ class DataCollectorRepository:
     def rollback(self) -> None:
         self.session.rollback()
 
-    def list_metric_pairs(self) -> list[tuple[int, int]]:
+    def list_metric_pairs(self) -> list[tuple[str, str]]:
         rows = self.session.execute(
-            select(Asset.sf_asset_id, Sensor.metric_function_id)
+            select(Asset.dc_asset_id, Sensor.metric_function_id)
             .join(Sensor, Sensor.asset_id == Asset.asset_id)
             .where(
-                Asset.sf_asset_id.is_not(None),
+                Asset.dc_asset_id.is_not(None),
                 Sensor.metric_function_id.is_not(None),
             )
             .distinct()
-            .order_by(Asset.sf_asset_id, Sensor.metric_function_id)
+            .order_by(Asset.dc_asset_id, Sensor.metric_function_id)
         ).all()
-        return [(int(asset_id), int(metric_id)) for asset_id, metric_id in rows]
+        return [(str(asset_id), str(metric_id)) for asset_id, metric_id in rows]
 
     def find_latest_sensor(
-        self, technical_object_id: int, metric_function_id: int
+        self, dc_asset_id: str, metric_function_id: str
     ) -> Sensor | None:
         return self.session.scalar(
             select(Sensor)
             .join(Asset, Asset.asset_id == Sensor.asset_id)
             .where(
-                Asset.sf_asset_id == technical_object_id,
+                Asset.dc_asset_id == dc_asset_id,
                 Sensor.metric_function_id == metric_function_id,
             )
             .order_by(Sensor.sensor_id.desc())
@@ -146,8 +142,8 @@ class DataCollectorRepository:
 
     def measurement_exists(
         self,
-        technical_object_id: int,
-        metric_function_id: int,
+        dc_asset_id: str,
+        metric_function_id: str,
         created_at: datetime,
     ) -> bool:
         return self.session.scalar(
@@ -155,7 +151,7 @@ class DataCollectorRepository:
             .join(Sensor, Sensor.sensor_id == Measurement.sensor_id)
             .join(Asset, Asset.asset_id == Sensor.asset_id)
             .where(
-                Asset.sf_asset_id == technical_object_id,
+                Asset.dc_asset_id == dc_asset_id,
                 Sensor.metric_function_id == metric_function_id,
                 Measurement.time == created_at,
             )

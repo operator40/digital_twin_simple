@@ -9,3 +9,4 @@ app/maintenance/prediction_out
 .ruff_cache/
 *.log
 backups/
+/asset_mappings.json
